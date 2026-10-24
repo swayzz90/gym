@@ -1,0 +1,1277 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#000000">
+<meta name="color-scheme" content="dark">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Gym">
+<meta name="format-detection" content="telephone=no">
+<link rel="apple-touch-icon" href="icon-180.png">
+<link rel="manifest" href="manifest.json">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700;800&display=swap" rel="stylesheet">
+<title>Gym</title>
+<style>
+:root{
+  --black:#000;
+  --iron:#1a1a1a;
+  --steel:#2c2c2c;
+  --chalk:#fff;
+  --ash:#8f8f8f;
+  --smoke:#585858;
+  --danger:#ff5c55;
+  --plate:"Barlow Condensed","Arial Narrow","Helvetica Neue",Arial,sans-serif;
+  --ui:-apple-system,BlinkMacSystemFont,"SF Pro Text","Helvetica Neue",Arial,sans-serif;
+  color-scheme:dark;
+}
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+html{background:var(--black);-webkit-text-size-adjust:100%}
+body{
+  margin:0;background:var(--black);color:var(--chalk);
+  font:16px/1.4 var(--ui);-webkit-font-smoothing:antialiased;
+  padding:env(safe-area-inset-top,0px) 0 calc(env(safe-area-inset-bottom,0px) + 40px);
+  min-height:100vh;overscroll-behavior-y:none;
+}
+body::before{content:"";position:fixed;inset:0 0 auto;height:env(safe-area-inset-top,0px);background:var(--black);z-index:30}
+body.noscroll{overflow:hidden}
+button{font:inherit;color:inherit;background:none;border:0;padding:0;margin:0;cursor:pointer;-webkit-user-select:none;user-select:none;text-align:inherit}
+input,textarea{font:inherit;color:var(--chalk)}
+::selection{background:var(--chalk);color:var(--black)}
+:focus-visible{outline:2px solid var(--chalk);outline-offset:2px}
+.i{width:22px;height:22px;fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round;flex:none}
+#app{max-width:620px;margin:0 auto;padding:0 18px}
+.hidden{display:none}
+
+/* Leiste oben */
+.bar{position:sticky;top:env(safe-area-inset-top,0px);z-index:20;background:var(--black);
+  display:grid;grid-template-columns:1fr auto 1fr;align-items:center;height:50px;margin:0 -18px;padding:0 6px}
+.bar-back{display:flex;align-items:center;gap:0;height:44px;padding:0 10px 0 4px;font-size:17px;justify-self:start;max-width:42vw}
+.bar-back span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.bar-title{font-size:15px;color:var(--ash);max-width:40vw;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.bar-right{justify-self:end;display:flex}
+.bar-btn{height:44px;padding:0 12px;font-size:17px;font-weight:600;display:flex;align-items:center}
+
+/* Typografie */
+.title{font:800 46px/0.95 var(--plate);letter-spacing:-.01em;margin:14px 0 8px;word-break:break-word}
+.home-top{padding-top:22px}
+.lead{color:var(--ash);font-size:15px;margin:0 0 22px}
+.lead b{color:var(--chalk);font-weight:600}
+.group{font-size:14px;color:var(--smoke);font-weight:600;margin:30px 0 4px}
+.muted{color:var(--ash);font-size:15px;margin:14px 0}
+
+/* Listen mit Haarlinien statt Karten */
+.rows{border-top:1px solid var(--steel)}
+.row{display:flex;align-items:center;gap:14px;width:100%;min-height:68px;padding:10px 0;border-bottom:1px solid var(--steel);text-align:left}
+.row:active{opacity:.6}
+.row-main{flex:1;min-width:0}
+.row-title{font-size:17px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.row-sub{font-size:14px;color:var(--ash);margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;display:flex;align-items:center;gap:7px}
+.chev{color:var(--smoke)}
+.done-dot{width:8px;height:8px;border-radius:50%;background:var(--chalk);flex:none}
+.warn-dot{width:8px;height:8px;border-radius:50%;background:var(--danger);flex:none}
+
+/* Trainingstage als große Schrift */
+.day{display:flex;align-items:baseline;justify-content:space-between;gap:12px;width:100%;padding:16px 0 14px;border-bottom:1px solid var(--steel);text-align:left}
+.day:active .day-name{opacity:.55}
+.day-name{font:800 52px/0.92 var(--plate);letter-spacing:-.01em;word-break:break-word;min-width:0}
+.day-meta{font-size:14px;color:var(--ash);text-align:right;flex:none;line-height:1.3}
+.day.is-today .day-meta{color:var(--chalk)}
+.day.is-today .day-meta::before{content:"";display:inline-block;width:8px;height:8px;border-radius:50%;background:var(--chalk);margin-right:6px;vertical-align:1px}
+
+/* Bearbeiten-Zeilen */
+.erow{display:flex;align-items:center;gap:10px;min-height:64px;padding:8px 0;border-bottom:1px solid var(--steel)}
+.erow-name{flex:1;min-width:0;font-weight:600;font-size:17px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.erow-actions{display:flex;gap:6px}
+.icon-btn{width:40px;height:40px;display:inline-flex;align-items:center;justify-content:center;border-radius:10px;background:var(--iron)}
+.icon-btn:disabled{opacity:.25}
+.icon-btn.danger{color:var(--danger)}
+.icon-btn .i{width:20px;height:20px}
+
+/* Buttons */
+.btn{display:flex;align-items:center;justify-content:center;gap:8px;width:100%;height:52px;margin-top:12px;padding:0 18px;border-radius:12px;background:var(--iron);font-size:16px;font-weight:600}
+.btn:active{opacity:.65}
+.btn-primary{background:var(--chalk);color:var(--black)}
+.btn-line{background:none;border:1px dashed var(--steel);color:var(--ash)}
+.btn-danger{color:var(--danger)}
+.btn .i{width:20px;height:20px}
+.btn-pair{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+
+/* Bilder */
+.thumb{position:relative;width:54px;height:54px;border-radius:10px;background:var(--iron);overflow:hidden;flex:none;display:flex;align-items:center;justify-content:center;font:700 19px/1 var(--plate);color:var(--ash)}
+.thumb img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover}
+img.net{opacity:0;transition:opacity .2s}
+img.net.loaded{opacity:1}
+img[data-img]{opacity:0;transition:opacity .2s}
+img[data-img].loaded{opacity:1}
+.hero{margin:0 -18px;background:var(--black);min-height:120px;display:flex;align-items:center;justify-content:center}
+.hero img{display:block;width:100%;max-height:48vh;object-fit:contain}
+.hero-empty{display:flex;align-items:center;justify-content:center;gap:10px;width:100%;height:92px;margin-top:6px;border:1px dashed var(--steel);border-radius:14px;color:var(--smoke);font-size:15px;font-weight:600}
+
+/* Übung */
+.ex-name{font:800 42px/0.95 var(--plate);letter-spacing:-.005em;margin:16px 0 8px;word-break:break-word}
+.tags{display:flex;gap:8px;flex-wrap:wrap}
+.tag{display:inline-flex;align-items:center;height:28px;padding:0 11px;border-radius:999px;border:1px solid var(--steel);font-size:13px;font-weight:600;color:var(--ash)}
+.last{margin:18px 0 0;padding:12px 0 0;border-top:1px solid var(--steel)}
+.last-label{font-size:14px;color:var(--ash)}
+.last-sets{display:flex;flex-wrap:wrap;gap:4px 16px;margin-top:4px;font:600 21px/1.2 var(--plate);font-variant-numeric:tabular-nums}
+.last-sets .dr{color:var(--ash)}
+
+/* Sätze */
+.sets{margin-top:22px}
+.sets-head,.set-row,.drop-row{display:grid;grid-template-columns:38px 1fr 1fr 58px 48px;gap:8px;align-items:center}
+.sets-head{font-size:13px;color:var(--smoke);font-weight:600;padding-bottom:8px}
+.sets-head span{text-align:center}
+.set{padding:9px 0;border-top:1px solid var(--steel)}
+.set-no{width:38px;height:38px;display:flex;align-items:center;justify-content:center;border-radius:9px;background:var(--iron);font:700 21px/1 var(--plate);color:var(--ash);font-variant-numeric:tabular-nums}
+.inp{width:100%;height:48px;border-radius:10px;background:var(--iron);border:1px solid transparent;text-align:center;
+  font:700 26px/1 var(--plate);font-variant-numeric:tabular-nums;color:var(--ash);caret-color:var(--chalk);outline:none;-webkit-appearance:none;appearance:none;padding:0 4px}
+.inp::placeholder{color:var(--smoke);font-weight:500}
+.inp:focus{border-color:var(--chalk);color:var(--chalk)}
+.set.done .inp{color:var(--chalk);background:var(--black);border-color:var(--steel)}
+.set.done .set-no{background:var(--chalk);color:var(--black)}
+.drop-btn{display:flex;align-items:center;justify-content:center;height:38px;border-radius:9px;border:1px solid var(--steel);font-size:13px;font-weight:700;color:var(--ash);text-align:center}
+.check{width:48px;height:48px;border-radius:50%;border:1.5px solid var(--steel);display:flex;align-items:center;justify-content:center;color:var(--smoke)}
+.set.done .check{background:var(--chalk);border-color:var(--chalk);color:var(--black)}
+.drop-row{margin-top:8px}
+.drop-mark{font:700 20px/1 var(--plate);color:var(--smoke);text-align:center}
+.drop-row .inp{height:40px;font-size:21px}
+.drop-row .icon-btn{width:38px;height:38px;justify-self:center}
+.shake{animation:shake .32s}
+@keyframes shake{25%{transform:translateX(-5px)}50%{transform:translateX(5px)}75%{transform:translateX(-3px)}}
+
+/* Aufklappbar */
+.fold{border-bottom:1px solid var(--steel)}
+.fold:first-of-type{margin-top:26px;border-top:1px solid var(--steel)}
+.fold summary{list-style:none;display:flex;align-items:center;justify-content:space-between;min-height:54px;font-weight:600;cursor:pointer}
+.fold summary::-webkit-details-marker{display:none}
+.fold summary .chev{transition:transform .2s}
+.fold[open] summary .chev{transform:rotate(90deg)}
+.fold-body{padding:0 0 16px;color:var(--ash);font-size:15px}
+.fold-text{white-space:pre-wrap;word-break:break-word;color:var(--chalk)}
+.hist{display:grid;grid-template-columns:76px 1fr;gap:10px;padding:8px 0;border-top:1px solid var(--iron)}
+.hist:first-child{border-top:0}
+.hist-sets{color:var(--chalk);font:600 19px/1.3 var(--plate);font-variant-numeric:tabular-nums}
+
+.next{margin-top:28px;width:100%;display:flex;align-items:center;justify-content:space-between;gap:12px;padding:16px 18px;border-radius:14px;background:var(--chalk);color:var(--black);text-align:left}
+.next small{display:block;font-size:13px;font-weight:600;opacity:.55}
+.next strong{display:block;font:800 28px/1 var(--plate);margin-top:2px}
+
+/* Formular */
+.label{display:block;font-size:14px;color:var(--ash);font-weight:600;margin:24px 0 8px}
+.label .opt{color:var(--smoke);font-weight:500}
+.field{width:100%;height:52px;border-radius:12px;background:var(--iron);border:1px solid transparent;padding:0 14px;font-size:17px;outline:none;color:var(--chalk);caret-color:var(--chalk);-webkit-appearance:none;appearance:none}
+.field:focus{border-color:var(--chalk)}
+.field::placeholder{color:var(--smoke)}
+textarea.field{height:auto;min-height:120px;padding:13px 14px;resize:vertical;line-height:1.45}
+.chips{display:flex;flex-wrap:wrap;gap:8px}
+.chip{height:40px;padding:0 15px;border-radius:999px;border:1px solid var(--steel);font-size:15px;font-weight:600;color:var(--ash)}
+.chip.on{background:var(--chalk);color:var(--black);border-color:var(--chalk)}
+.chip-add{border-style:dashed}
+.seg{display:grid;grid-template-columns:1fr 1fr;background:var(--iron);border-radius:12px;padding:4px;gap:4px}
+.seg button{min-height:44px;padding:6px 8px;border-radius:9px;font-size:15px;font-weight:600;color:var(--ash);text-align:center;line-height:1.2}
+.seg button.on{background:var(--chalk);color:var(--black)}
+.img-pick{width:100%;margin-top:6px;border-radius:16px;overflow:hidden;border:1px dashed var(--steel);min-height:170px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:6px;color:var(--ash);font-weight:600;text-align:center}
+.img-pick small{color:var(--smoke);font-weight:500;font-size:14px}
+.img-pick.has{border:0;background:var(--black)}
+.img-pick.has img{display:block;width:100%;max-height:320px;object-fit:contain}
+
+/* Daten */
+.note{border-left:2px solid var(--chalk);padding:2px 0 2px 14px;color:var(--ash);font-size:15px;margin:4px 0 8px}
+.note b{color:var(--chalk);font-weight:600;display:block;margin-bottom:2px}
+.stats{display:grid;grid-template-columns:repeat(3,1fr);margin:22px 0 10px;border-top:1px solid var(--steel);border-bottom:1px solid var(--steel)}
+.stats div{padding:14px 0}
+.stats b{display:block;font:800 34px/1 var(--plate)}
+.stats span{font-size:13px;color:var(--ash)}
+
+/* Sheet */
+.sheet-wrap{position:fixed;left:0;right:0;top:0;height:100%;z-index:50;display:flex;flex-direction:column;justify-content:flex-end}
+.sheet-bg{position:absolute;inset:0;background:rgba(0,0,0,.7);opacity:0;transition:opacity .2s}
+.sheet{position:relative;width:100%;max-width:620px;margin:0 auto;background:var(--black);border-top:1px solid var(--steel);border-radius:20px 20px 0 0;
+  padding:20px 18px calc(18px + env(safe-area-inset-bottom,0px));max-height:88%;overflow:auto;-webkit-overflow-scrolling:touch;transform:translateY(100%);transition:transform .22s ease}
+.sheet-wrap.open .sheet{transform:none}
+.sheet-wrap.open .sheet-bg{opacity:1}
+.sheet-title{font:800 32px/1 var(--plate);margin:0 0 12px}
+.sheet-text{color:var(--ash);margin:0 0 8px;font-size:15px}
+.sheet .btn:first-of-type{margin-top:8px}
+.sheet .rows{margin-top:6px}
+.sheet .field{margin-top:14px}
+
+.toast{position:fixed;left:50%;bottom:calc(26px + env(safe-area-inset-bottom,0px));transform:translate(-50%,16px);background:var(--chalk);color:var(--black);
+  padding:12px 18px;border-radius:999px;font-weight:600;font-size:15px;width:max-content;opacity:0;transition:opacity .2s,transform .2s;z-index:60;pointer-events:none;max-width:88vw;text-align:center}
+.toast.show{opacity:1;transform:translate(-50%,0)}
+
+.empty{padding:6px 0}
+.empty p{color:var(--ash);margin:0 0 10px;font-size:16px;max-width:34em}
+
+@media (prefers-reduced-motion:reduce){*{transition:none!important;animation:none!important}}
+
+/* V2: Bibliothek */
+.seg3{grid-template-columns:repeat(3,1fr)}
+.tabs{margin:2px 0 14px}
+.chips-scroll{display:flex;gap:8px;overflow-x:auto;margin:12px -18px 6px;padding:0 18px;scrollbar-width:none;-webkit-overflow-scrolling:touch}
+.chips-scroll::-webkit-scrollbar{display:none}
+.chips-scroll .chip{flex:none;height:36px;font-size:14px}
+.lib-row{display:flex;align-items:center;gap:6px;border-bottom:1px solid var(--steel)}
+.lib-row .row{border-bottom:0;flex:1;min-width:0}
+.info-btn{width:44px;height:44px;display:flex;align-items:center;justify-content:center;border-radius:50%;border:1px solid var(--steel);color:var(--ash);font:700 18px/1 var(--plate);flex:none}
+.lib-imgs{display:grid;grid-template-columns:1fr 1fr;gap:4px;margin:0 -18px}
+.lib-imgs figure{margin:0;position:relative;background:var(--iron);aspect-ratio:3/2;overflow:hidden}
+.lib-imgs img{width:100%;height:100%;object-fit:cover;display:block}
+.lib-imgs figcaption{position:absolute;left:8px;bottom:8px;font-size:12px;font-weight:600;background:rgba(0,0,0,.7);padding:3px 8px;border-radius:6px}
+.sub-en{color:var(--ash);font-size:15px;margin:0 0 12px}
+.tag.sec{border-style:dashed;color:var(--smoke)}
+.info dl{display:grid;grid-template-columns:auto 1fr;gap:6px 16px;margin:4px 0 0;font-size:15px}
+.info dt{color:var(--smoke)}
+.info dd{margin:0;color:var(--chalk)}
+.info h3{font-size:15px;font-weight:700;color:var(--chalk);margin:18px 0 4px}
+.info p{margin:0;color:var(--ash);line-height:1.5;max-width:36em}
+.info .orig{color:var(--ash);margin:0 0 10px}
+.mine-note{margin:18px 0 0;color:var(--ash);font-size:15px;display:flex;align-items:center;gap:8px}
+
+/* V2: Ziele */
+.goal{margin-top:18px;padding:14px 16px 16px;border-radius:14px;border:1px solid var(--steel)}
+.goal-top{display:flex;justify-content:space-between;align-items:center;font-size:14px;color:var(--ash)}
+.goal-edit{font-size:15px;font-weight:600;color:var(--chalk);padding:6px 0 6px 12px}
+.goal-val{font:800 32px/1 var(--plate);margin:2px 0 12px}
+.track{position:relative;height:8px;border-radius:4px;background:var(--steel);overflow:hidden}
+.fill{position:absolute;left:0;top:0;bottom:0;background:var(--chalk)}
+.tick{position:absolute;top:0;bottom:0;width:2px;background:var(--black);z-index:1}
+.goal-sub{font-size:14px;color:var(--ash);margin-top:9px}
+.goal.ready{background:var(--chalk);color:var(--black);border-color:var(--chalk)}
+.goal.ready .goal-top,.goal.ready .goal-sub{color:#4a4a4a}
+.goal.ready .goal-edit{color:var(--black)}
+.goal.ready .track{background:#cfcfcf}
+.goal.ready .fill{background:var(--black)}
+.goal.ready .btn-primary{background:var(--black);color:var(--chalk)}
+.goal-add{margin-top:14px;display:inline-flex;align-items:center;gap:6px;color:var(--ash);font-size:15px;font-weight:600;height:40px}
+.goal-add .i{width:18px;height:18px}
+.goal-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin:8px 0 4px}
+.goal-grid label{font-size:13px;color:var(--ash);font-weight:600}
+.goal-grid .field{margin-top:6px}
+
+/* V2: Notizen */
+.fold summary .sum-l{display:flex;align-items:center;gap:8px}
+.note-field{min-height:110px;margin-top:2px}
+
+/* V2: Auswertung */
+.stats2{grid-template-columns:repeat(2,1fr)}
+.bar-row{padding:12px 0;border-bottom:1px solid var(--steel)}
+.bar-head{display:flex;justify-content:space-between;align-items:baseline;margin-bottom:8px;font-weight:600}
+.bar-head b{font:700 26px/1 var(--plate);font-variant-numeric:tabular-nums}
+.switch-row{display:flex;justify-content:space-between;align-items:center;gap:14px;width:100%;padding:14px 0;border-bottom:1px solid var(--steel);text-align:left;font-size:15px}
+.switch{width:50px;height:30px;border-radius:15px;background:var(--steel);position:relative;flex:none;transition:background .2s}
+.switch::after{content:"";position:absolute;top:3px;left:3px;width:24px;height:24px;border-radius:50%;background:var(--chalk);transition:transform .2s}
+.switch.on{background:var(--chalk)}
+.switch.on::after{transform:translateX(20px);background:var(--black)}
+.hint{font-size:14px;color:var(--ash);margin:14px 0 0;line-height:1.45}
+</style>
+</head>
+<body>
+<main id="app"></main>
+<input type="file" id="file-img" accept="image/*" class="hidden">
+<input type="file" id="file-import" accept="application/json,.json" class="hidden">
+<div class="toast" id="toast" role="status" aria-live="polite"></div>
+<script>window.LIBRARY=[{"id":"bankdruecken","name":"Bankdrücken","en":"Barbell Bench Press","img":"Barbell_Bench_Press_-_Medium_Grip","eq":"Langhantel","type":"weight","area":"Brust","p":["Brust"],"s":["Vordere Schulter","Trizeps"],"why":"Die Grundübung für Brustmasse und Druckkraft. Lässt sich über Jahre in kleinen Schritten steigern.","how":"Schulterblätter zurück und nach unten ziehen, Füße fest am Boden. Stange kontrolliert zur unteren Brust senken, Ellbogen etwa 45 bis 70 Grad vom Körper. Kraftvoll nach oben drücken, das Gesäß bleibt auf der Bank.","err":"Ellbogen weit ausgestellt, Stange auf der Brust abfedern lassen, Schulterblätter verlieren die Spannung."},{"id":"schraegbankdruecken","name":"Schrägbankdrücken","en":"Incline Barbell Bench Press","img":"Barbell_Incline_Bench_Press_-_Medium_Grip","eq":"Langhantel","type":"weight","area":"Brust","p":["Brust"],"s":["Vordere Schulter","Trizeps"],"why":"Betont die obere Brust und sorgt für eine volle, gleichmäßige Brust.","how":"Bank auf 30 bis 45 Grad. Stange zur oberen Brust knapp unter dem Schlüsselbein senken und senkrecht nach oben drücken. Schulterblätter bleiben fest zusammen.","err":"Bank zu steil, dann übernimmt die Schulter. Stange wandert zu tief Richtung Bauch."},{"id":"negativbankdruecken","name":"Negativbankdrücken","en":"Decline Barbell Bench Press","img":"Decline_Barbell_Bench_Press","eq":"Langhantel","type":"weight","area":"Brust","p":["Brust"],"s":["Trizeps","Vordere Schulter"],"why":"Betont die untere Brust und ist für viele schulterfreundlicher als flaches Bankdrücken.","how":"Beine einhaken, Bank leicht negativ. Stange zur unteren Brust senken und nach oben drücken.","err":"Zu schnell absenken, schwer trainieren ohne Sicherung."},{"id":"kh-bankdruecken","name":"Kurzhantel-Bankdrücken","en":"Dumbbell Bench Press","img":"Dumbbell_Bench_Press","eq":"Kurzhantel","type":"weight","area":"Brust","p":["Brust"],"s":["Vordere Schulter","Trizeps"],"why":"Größerer Bewegungsweg als mit der Langhantel, jede Seite arbeitet für sich. Gut gegen Seitenunterschiede.","how":"Hanteln über der Brust starten, kontrolliert bis auf Brusthöhe senken, Ellbogen leicht zum Körper. In einem leichten Bogen nach oben drücken.","err":"Hanteln oben zusammenschlagen, unten die Spannung verlieren, Ellbogen 90 Grad ausgestellt."},{"id":"kh-schraegbankdruecken","name":"Kurzhantel-Schrägbankdrücken","en":"Incline Dumbbell Press","img":"Incline_Dumbbell_Press","eq":"Kurzhantel","type":"weight","area":"Brust","p":["Brust"],"s":["Vordere Schulter","Trizeps"],"why":"Einer der besten Masseaufbauer für die obere Brust, mit großem Bewegungsumfang.","how":"Bank auf 30 bis 45 Grad. Hanteln neben der oberen Brust starten und nach oben drücken, bis die Arme fast gestreckt sind.","err":"Bank zu steil, Rücken löst sich von der Bank."},{"id":"kh-negativbankdruecken","name":"Kurzhantel-Negativbankdrücken","en":"Decline Dumbbell Bench Press","img":"Decline_Dumbbell_Bench_Press","eq":"Kurzhantel","type":"weight","area":"Brust","p":["Brust"],"s":["Trizeps","Vordere Schulter"],"why":"Untere Brust mit freiem Bewegungsweg der Hanteln.","how":"Beine einhaken, Hanteln zur unteren Brust senken und nach oben drücken.","err":"Hanteln am Ende unkontrolliert fallen lassen."},{"id":"enges-bankdruecken","name":"Enges Bankdrücken","en":"Close-Grip Bench Press","img":"Close-Grip_Barbell_Bench_Press","eq":"Langhantel","type":"weight","area":"Arme","p":["Trizeps"],"s":["Brust","Vordere Schulter"],"why":"Eine der schwersten Trizepsübungen. Baut Kraft für Dips und normales Bankdrücken auf.","how":"Griff etwa schulterbreit. Ellbogen eng am Körper, Stange zur unteren Brust senken und hochdrücken.","err":"Zu enger Griff belastet die Handgelenke, Ellbogen fallen nach außen."},{"id":"brustpresse","name":"Brustpresse","en":"Chest Press Machine","img":"Leverage_Chest_Press","eq":"Maschine","type":"weight","area":"Brust","p":["Brust"],"s":["Vordere Schulter","Trizeps"],"why":"Sichere Brustübung, ideal bis zum Muskelversagen und für Drop Sets.","how":"Sitz so einstellen, dass die Griffe auf Höhe der mittleren Brust sind. Nach vorn drücken und kontrolliert zurück, bis die Brust gedehnt ist.","err":"Sitz zu hoch oder zu tief, Schultern rollen nach vorn."},{"id":"schraege-brustpresse","name":"Schräge Brustpresse","en":"Incline Chest Press Machine","img":"Leverage_Incline_Chest_Press","eq":"Maschine","type":"weight","area":"Brust","p":["Brust"],"s":["Vordere Schulter","Trizeps"],"why":"Obere Brust gezielt und gelenkschonend trainieren.","how":"Rücken fest am Polster, Griffe auf Höhe der oberen Brust. Schräg nach oben drücken und langsam zurück.","err":"Schultern ziehen nach oben, Bewegung wird zu kurz."},{"id":"butterfly","name":"Butterfly","en":"Pec Deck","img":"Butterfly","eq":"Maschine","type":"weight","area":"Brust","p":["Brust"],"s":["Vordere Schulter"],"why":"Isolationsübung für die Brust, gut als Abschluss oder für Drop Sets.","how":"Arme leicht gebeugt, Griffe vor der Brust zusammenführen und kurz anspannen. Langsam öffnen, bis die Brust gedehnt ist.","err":"Mit den Armen drücken statt aus der Brust zu ziehen, zu weit nach hinten öffnen."},{"id":"kh-fliegende","name":"Kurzhantel-Fliegende","en":"Dumbbell Flyes","img":"Dumbbell_Flyes","eq":"Kurzhantel","type":"weight","area":"Brust","p":["Brust"],"s":["Vordere Schulter"],"why":"Starke Dehnung der Brust unter Last, gut für den Muskelaufbau.","how":"Flachbank, Arme leicht gebeugt. Hanteln im Bogen seitlich absenken, bis die Brust gedehnt ist, dann im selben Bogen zurück.","err":"Arme beugen und strecken sich während der Bewegung, zu schwer und zu tief."},{"id":"schraege-fliegende","name":"Schräge Kurzhantel-Fliegende","en":"Incline Dumbbell Flyes","img":"Incline_Dumbbell_Flyes","eq":"Kurzhantel","type":"weight","area":"Brust","p":["Brust"],"s":["Vordere Schulter"],"why":"Fliegende mit Fokus auf die obere Brust.","how":"Bank auf 30 Grad, Arme leicht gebeugt. Hanteln im Bogen seitlich absenken und wieder über der Brust zusammenführen.","err":"Bank zu steil, Ellbogen sinken unter die Bank."},{"id":"cable-crossover","name":"Kabelzug-Crossover","en":"Cable Crossover","img":"Cable_Crossover","eq":"Kabelzug","type":"weight","area":"Brust","p":["Brust"],"s":["Vordere Schulter"],"why":"Konstante Spannung über die ganze Bewegung, betont von oben gezogen die untere und mittlere Brust.","how":"Rollen oben, ein Schritt nach vorn. Griffe in einem Bogen vor dem Körper nach unten zusammenführen, kurz halten, langsam zurück.","err":"Oberkörper schwingt mit, Arme werden zum Drücken gebeugt."},{"id":"cable-fliegende-unten","name":"Kabelzug-Fliegende von unten","en":"Low Cable Crossover","img":"Low_Cable_Crossover","eq":"Kabelzug","type":"weight","area":"Brust","p":["Brust"],"s":["Vordere Schulter"],"why":"Betont die obere Brust mit konstanter Spannung.","how":"Rollen unten. Griffe in einem Bogen nach oben vor die Brust führen und kurz anspannen.","err":"Zu hoch über Kopfhöhe ziehen, Schultern übernehmen."},{"id":"smith-schraegbank","name":"Schrägbankdrücken an der Smith-Maschine","en":"Smith Machine Incline Bench Press","img":"Smith_Machine_Incline_Bench_Press","eq":"Smith-Maschine","type":"weight","area":"Brust","p":["Brust"],"s":["Vordere Schulter","Trizeps"],"why":"Stabile Variante für die obere Brust, gut ohne Trainingspartner.","how":"Bank so positionieren, dass die Stange zur oberen Brust läuft. Kontrolliert absenken und hochdrücken.","err":"Bank falsch ausgerichtet, Stange landet am Hals oder am Bauch."},{"id":"liegestuetz","name":"Liegestütz","en":"Push-up","img":"Pushups","eq":"Körpergewicht","type":"bw","area":"Brust","p":["Brust"],"s":["Trizeps","Vordere Schulter","Bauch"],"why":"Brustübung, die überall geht und nebenbei die Rumpfstabilität trainiert. Mit Zusatzgewicht oder schwereren Varianten steigerbar.","how":"Hände etwas breiter als schulterbreit, Körper bildet eine gerade Linie. Brust bis knapp über den Boden senken, Ellbogen etwa 45 Grad zum Körper, kraftvoll hochdrücken.","err":"Hüfte hängt durch, Ellbogen weit ausgestellt, nur halbe Wiederholungen."},{"id":"liegestuetz-erhoeht","name":"Liegestütz mit erhöhten Füßen","en":"Decline Push-up","img":"Decline_Push-Up","eq":"Körpergewicht","type":"bw","area":"Brust","p":["Brust"],"s":["Vordere Schulter","Trizeps"],"why":"Schwerere Liegestütz-Variante mit mehr Fokus auf die obere Brust.","how":"Füße auf einer Bank, Hände am Boden. Wie beim normalen Liegestütz absenken und hochdrücken.","err":"Hüfte knickt ab, Kopf hängt nach unten."},{"id":"liegestuetz-schraeg","name":"Liegestütz an der Bank","en":"Incline Push-up","img":"Incline_Push-Up","eq":"Körpergewicht","type":"bw","area":"Brust","p":["Brust"],"s":["Trizeps","Vordere Schulter"],"why":"Leichtere Variante zum Einstieg oder für viele Wiederholungen am Ende des Trainings.","how":"Hände auf eine Bank oder Stange, Körper gerade. Brust zur Kante senken und hochdrücken.","err":"Hüfte sinkt ab."},{"id":"archer-liegestuetz","name":"Archer-Liegestütz","en":"Archer Push-up","eq":"Körpergewicht","type":"bw","area":"Brust","p":["Brust"],"s":["Trizeps","Vordere Schulter"],"why":"Verlagert das Gewicht auf einen Arm. Vorstufe zum einarmigen Liegestütz.","how":"Hände sehr breit. Zu einer Seite absenken, der andere Arm bleibt gestreckt und stützt nur. Seiten abwechseln.","err":"Der gestreckte Arm hilft zu stark mit, Hüfte dreht sich weg."},{"id":"einarmiger-liegestuetz","name":"Einarmiger Liegestütz","en":"One-Arm Push-up","img":"Single-Arm_Push-Up","eq":"Körpergewicht","type":"bw","area":"Brust","p":["Brust"],"s":["Trizeps","Vordere Schulter","Schräge Bauchmuskeln"],"why":"Fortgeschrittene Kraftübung mit viel Rumpfspannung.","how":"Füße breit, eine Hand unter der Brust. Kontrolliert absenken und hochdrücken, Hüfte bleibt parallel zum Boden.","err":"Oberkörper dreht stark auf."},{"id":"plyo-liegestuetz","name":"Liegestütz mit Klatschen","en":"Plyo Push-up","img":"Plyo_Push-up","eq":"Körpergewicht","type":"bw","area":"Brust","p":["Brust"],"s":["Trizeps","Vordere Schulter"],"why":"Schnellkraft für Brust und Trizeps.","how":"Aus dem Liegestütz explosiv abdrücken, in der Luft klatschen und weich mit gebeugten Armen landen.","err":"Harte Landung mit gestreckten Armen."},{"id":"dips-brust","name":"Dips (Brust)","en":"Chest Dips","img":"Dips_-_Chest_Version","eq":"Dipbarren","type":"bw","area":"Brust","p":["Brust"],"s":["Trizeps","Vordere Schulter"],"why":"Eine der besten Übungen für die untere Brust, mit Gewichtsgürtel steigerbar.","how":"Oberkörper leicht nach vorn neigen, Ellbogen etwas nach außen. Absenken, bis die Schultern etwa auf Ellbogenhöhe sind, dann hochdrücken.","err":"Zu tief mit nach vorn rollenden Schultern, Schwung aus den Beinen."},{"id":"ring-dips","name":"Ring Dips","en":"Ring Dips","img":"Ring_Dips","eq":"Ringe","type":"bw","area":"Brust","p":["Trizeps","Brust"],"s":["Vordere Schulter","Bauch"],"why":"Die instabilen Ringe machen Dips deutlich schwerer und trainieren die Schulterstabilität.","how":"Im Stütz die Ringe eng am Körper halten, leicht nach außen drehen. Absenken bis etwa 90 Grad im Ellbogen und hochdrücken.","err":"Ringe wandern auseinander, Schultern sacken nach vorn."},{"id":"kh-pullover","name":"Kurzhantel-Pullover","en":"Dumbbell Pullover","img":"Bent-Arm_Dumbbell_Pullover","eq":"Kurzhantel","type":"weight","area":"Brust","p":["Brust"],"s":["Latissimus","Trizeps"],"why":"Dehnt Brust und Latissimus. Klassische Übung für einen breiten Brustkorb.","how":"Quer auf der Bank, Hantel mit beiden Händen über der Brust. Mit leicht gebeugten Armen hinter den Kopf absenken, bis eine Dehnung spürbar ist, zurückführen.","err":"Zu weit absenken, Arme stark beugen und strecken."},{"id":"schulterdruecken-lh","name":"Schulterdrücken stehend","en":"Overhead Press","img":"Standing_Military_Press","eq":"Langhantel","type":"weight","area":"Schultern","p":["Vordere Schulter"],"s":["Seitliche Schulter","Trizeps","Bauch"],"why":"Die Grundübung für kräftige Schultern und Stabilität im ganzen Körper.","how":"Stange auf Höhe der oberen Brust, Griff knapp schulterbreit. Bauch und Gesäß anspannen, Stange senkrecht über den Kopf drücken und den Kopf dabei leicht nach vorn bringen.","err":"Starkes Hohlkreuz, Schwung aus den Beinen, Stange endet vor dem Gesicht statt über dem Kopf."},{"id":"kh-schulterdruecken","name":"Kurzhantel-Schulterdrücken","en":"Dumbbell Shoulder Press","img":"Dumbbell_Shoulder_Press","eq":"Kurzhantel","type":"weight","area":"Schultern","p":["Vordere Schulter"],"s":["Seitliche Schulter","Trizeps"],"why":"Schultermasse mit freiem Bewegungsweg, sitzend sehr gut kontrollierbar.","how":"Sitzend mit Lehne, Hanteln auf Ohrhöhe. Nach oben drücken, bis die Arme fast gestreckt sind, kontrolliert zurück.","err":"Lehne zu flach, Rücken löst sich von der Lehne."},{"id":"arnold-press","name":"Arnold Press","en":"Arnold Press","img":"Arnold_Dumbbell_Press","eq":"Kurzhantel","type":"weight","area":"Schultern","p":["Vordere Schulter"],"s":["Seitliche Schulter","Trizeps"],"why":"Die Drehbewegung trifft vordere und seitliche Schulter in einer Übung.","how":"Hanteln vor dem Gesicht, Handflächen zu dir. Beim Hochdrücken nach außen drehen, oben zeigen die Handflächen nach vorn. Beim Absenken zurückdrehen.","err":"Zu schwer, die Drehung wird nur angedeutet."},{"id":"schulterpresse","name":"Schulterpresse","en":"Machine Shoulder Press","img":"Machine_Shoulder_Military_Press","eq":"Maschine","type":"weight","area":"Schultern","p":["Vordere Schulter"],"s":["Seitliche Schulter","Trizeps"],"why":"Sicheres Schulterdrücken, ideal für schwere Sätze und Drop Sets.","how":"Sitz so einstellen, dass die Griffe auf Schulterhöhe starten. Nach oben drücken und langsam zurück.","err":"Rücken löst sich vom Polster, Ellbogen schlagen oben durch."},{"id":"seitheben","name":"Seitheben","en":"Lateral Raise","img":"Side_Lateral_Raise","eq":"Kurzhantel","type":"weight","area":"Schultern","p":["Seitliche Schulter"],"s":["Trapez"],"why":"Die wichtigste Übung für breite Schultern.","how":"Leicht vorgebeugt stehen, Arme minimal gebeugt. Hanteln seitlich bis etwa Schulterhöhe heben, die Ellbogen führen die Bewegung. Langsam absenken.","err":"Schwung aus dem Oberkörper, Schultern zu den Ohren ziehen, über Schulterhöhe heben."},{"id":"seitheben-kabel","name":"Seitheben am Kabelzug","en":"Cable Lateral Raise","img":"Cable_Seated_Lateral_Raise","eq":"Kabelzug","type":"weight","area":"Schultern","p":["Seitliche Schulter"],"s":["Trapez"],"why":"Hält die Spannung auch im unteren Teil der Bewegung, wo Kurzhanteln kaum wirken.","how":"Rolle unten, Griff mit der gegenüberliegenden Hand. Arm seitlich bis Schulterhöhe heben, langsam zurück.","err":"Oberkörper lehnt sich weg, Arm wird gebeugt."},{"id":"seitheben-maschine","name":"Seitheben an der Maschine","en":"Lateral Raise Machine","eq":"Maschine","type":"weight","area":"Schultern","p":["Seitliche Schulter"],"s":["Trapez"],"why":"Konstante Spannung und einfach bis zum Muskelversagen zu trainieren.","how":"Sitz so einstellen, dass die Schultern auf Höhe der Drehachse sind. Polster seitlich bis Schulterhöhe heben.","err":"Schultern ziehen nach oben, Schwung."},{"id":"frontheben","name":"Frontheben","en":"Front Raise","img":"Front_Dumbbell_Raise","eq":"Kurzhantel","type":"weight","area":"Schultern","p":["Vordere Schulter"],"s":["Seitliche Schulter"],"why":"Isoliert die vordere Schulter. Wer viel drückt, braucht davon meist nur wenig.","how":"Hanteln vor dem Körper bis auf Schulterhöhe heben, Arme leicht gebeugt, langsam absenken.","err":"Schwung aus dem Rücken, zu hoch heben."},{"id":"reverse-butterfly","name":"Reverse Butterfly","en":"Reverse Pec Deck","img":"Reverse_Machine_Flyes","eq":"Maschine","type":"weight","area":"Schultern","p":["Hintere Schulter"],"s":["Oberer Rücken"],"why":"Trainiert die oft vernachlässigte hintere Schulter. Gut für Haltung und gegen nach vorn gerollte Schultern.","how":"Brust ans Polster, Arme fast gestreckt. Griffe in einem Bogen nach hinten führen, bis die Arme etwa auf Höhe des Körpers sind.","err":"Schulterblätter stark zusammenziehen, dann arbeitet vor allem der Rücken. Schwung."},{"id":"vorgebeugtes-seitheben","name":"Vorgebeugtes Seitheben","en":"Rear Delt Raise","img":"Seated_Bent-Over_Rear_Delt_Raise","eq":"Kurzhantel","type":"weight","area":"Schultern","p":["Hintere Schulter"],"s":["Oberer Rücken"],"why":"Hintere Schulter ohne Maschine.","how":"Sitzend weit vorgebeugt, Hanteln unter den Beinen. Arme leicht gebeugt seitlich nach oben führen.","err":"Oberkörper richtet sich auf, zu schwer."},{"id":"reverse-fly-kabel","name":"Reverse Flys am Kabelzug","en":"Cable Rear Delt Fly","img":"Cable_Rear_Delt_Fly","eq":"Kabelzug","type":"weight","area":"Schultern","p":["Hintere Schulter"],"s":["Oberer Rücken"],"why":"Hintere Schulter mit konstanter Spannung.","how":"Kabel über Kreuz greifen, Rollen auf Schulterhöhe. Arme gestreckt nach außen ziehen.","err":"Arme beugen, Oberkörper lehnt sich zurück."},{"id":"face-pulls","name":"Face Pulls","en":"Face Pull","img":"Face_Pull","eq":"Kabelzug","type":"weight","area":"Schultern","p":["Hintere Schulter"],"s":["Oberer Rücken","Trapez"],"why":"Stärkt hintere Schulter und Rotatorenmanschette. Guter Ausgleich zu viel Drücken.","how":"Seil auf Gesichtshöhe. Zum Gesicht ziehen, Ellbogen hoch, am Ende die Hände nach außen drehen.","err":"Zu schwer, Ellbogen fallen nach unten, Oberkörper lehnt sich weit zurück."},{"id":"aufrechtes-rudern","name":"Aufrechtes Rudern","en":"Upright Row","img":"Upright_Barbell_Row","eq":"Langhantel","type":"weight","area":"Schultern","p":["Seitliche Schulter"],"s":["Trapez","Vordere Schulter"],"why":"Seitliche Schulter und Trapez mit mehr Gewicht als beim Seitheben.","how":"Griff etwas breiter als schulterbreit. Stange körpernah bis etwa Brusthöhe ziehen, die Ellbogen führen nach oben und außen.","err":"Zu enger Griff und zu hoch ziehen. Das reizt bei vielen die Schulter."},{"id":"handstand-liegestuetz","name":"Handstand-Liegestütz","en":"Handstand Push-up","img":"Handstand_Push-Ups","eq":"Körpergewicht","type":"bw","area":"Schultern","p":["Vordere Schulter"],"s":["Trizeps","Seitliche Schulter","Trapez"],"why":"Die Königsübung für Schulterkraft mit dem eigenen Körper.","how":"Im Handstand an der Wand, Hände etwas breiter als schulterbreit. Kopf kontrolliert zum Boden senken, Kopf und Hände bilden ein Dreieck, wieder hochdrücken.","err":"Ellbogen weit ausgestellt, Kopf schlägt auf, starkes Hohlkreuz."},{"id":"pike-liegestuetz","name":"Pike-Liegestütz","en":"Pike Push-up","eq":"Körpergewicht","type":"bw","area":"Schultern","p":["Vordere Schulter"],"s":["Trizeps","Seitliche Schulter"],"why":"Vorstufe zum Handstand-Liegestütz. Trainiert das Drücken über Kopf ohne Geräte.","how":"Hüfte hoch, der Körper bildet ein umgedrehtes V. Kopf vor den Händen Richtung Boden senken und hochdrücken. Füße erhöht macht es schwerer.","err":"Hüfte sinkt ab, dann wird es zum normalen Liegestütz."},{"id":"handstand-wand","name":"Handstand an der Wand","en":"Wall Handstand","eq":"Körpergewicht","type":"bw","area":"Schultern","p":["Vordere Schulter"],"s":["Trapez","Trizeps","Bauch"],"why":"Baut Schulterstabilität und Körperkontrolle auf. Basis für Handstand-Liegestütz und freien Handstand.","how":"Mit dem Bauch zur Wand hochlaufen, Arme gestreckt, Schultern aktiv zu den Ohren schieben, Körper gerade. Trag die Sekunden bei Wdh ein.","err":"Hohlkreuz, Schultern sacken ein."},{"id":"planche-lean","name":"Planche Lean","en":"Planche Lean","eq":"Körpergewicht","type":"bw","area":"Schultern","p":["Vordere Schulter"],"s":["Brust","Trizeps","Bauch"],"why":"Einstieg in die Planche. Baut Schulter- und Handgelenkkraft auf.","how":"Liegestützposition, Finger leicht nach außen gedreht. Schultern weit vor die Hände schieben, Arme gestreckt, Rücken leicht rund. Sekunden bei Wdh eintragen.","err":"Arme beugen, Hüfte hängt durch."},{"id":"pseudo-planche-liegestuetz","name":"Pseudo-Planche-Liegestütz","en":"Pseudo Planche Push-up","eq":"Körpergewicht","type":"bw","area":"Schultern","p":["Vordere Schulter"],"s":["Brust","Trizeps"],"why":"Liegestütz mit nach vorn verlagertem Gewicht, sehr effektiv für vordere Schulter und Planche-Kraft.","how":"Hände auf Hüfthöhe neben dem Körper, Schultern vor den Händen. In dieser Position Liegestütze machen.","err":"Schultern wandern beim Absenken zurück hinter die Hände."},{"id":"trizepsdruecken-seil","name":"Trizepsdrücken am Seil","en":"Rope Pushdown","img":"Triceps_Pushdown_-_Rope_Attachment","eq":"Kabelzug","type":"weight","area":"Arme","p":["Trizeps"],"why":"Klassische Isolationsübung für den Trizeps, besonders den seitlichen Kopf.","how":"Ellbogen fest am Körper. Seil nach unten drücken und unten die Enden auseinanderziehen. Langsam zurück bis etwa 90 Grad.","err":"Ellbogen wandern nach vorn, der Oberkörper drückt mit."},{"id":"trizepsdruecken-stange","name":"Trizepsdrücken an der Stange","en":"Triceps Pushdown","img":"Triceps_Pushdown","eq":"Kabelzug","type":"weight","area":"Arme","p":["Trizeps"],"why":"Erlaubt mehr Gewicht als das Seil, gut für schwere Sätze.","how":"Ellbogen am Körper, Stange nach unten drücken, bis die Arme gestreckt sind. Kontrolliert zurück.","err":"Schultern ziehen nach vorn, Ellbogen öffnen sich."},{"id":"trizepsdruecken-untergriff","name":"Trizepsdrücken im Untergriff","en":"Reverse Grip Pushdown","img":"Reverse_Grip_Triceps_Pushdown","eq":"Kabelzug","type":"weight","area":"Arme","p":["Trizeps"],"s":["Unterarme"],"why":"Andere Griffposition für Abwechslung, betont den inneren Kopf.","how":"Stange im Untergriff, Ellbogen am Körper, nach unten strecken.","err":"Zu schwer, Handgelenke knicken ab."},{"id":"ueberkopf-trizeps-kabel","name":"Überkopf-Trizepsstrecken am Kabel","en":"Overhead Cable Triceps Extension","img":"Cable_Rope_Overhead_Triceps_Extension","eq":"Kabelzug","type":"weight","area":"Arme","p":["Trizeps"],"why":"Trainiert den langen Trizepskopf in Dehnung. Wichtig für den Armumfang.","how":"Rücken zum Kabelzug, Seil hinter dem Kopf. Arme nach vorn oben strecken, Ellbogen bleiben eng und zeigen nach vorn.","err":"Ellbogen gehen weit auseinander, starkes Hohlkreuz."},{"id":"skull-crusher","name":"SZ-Stirndrücken (Skull Crusher)","en":"EZ-Bar Skullcrusher","img":"EZ-Bar_Skullcrusher","eq":"SZ-Stange","type":"weight","area":"Arme","p":["Trizeps"],"why":"Sehr effektiv für alle drei Trizepsköpfe.","how":"Liegend, Stange über der Brust. Nur die Unterarme bewegen und die Stange zur Stirn oder knapp hinter den Kopf senken, dann strecken.","err":"Ellbogen wandern nach außen, Oberarme bewegen sich mit."},{"id":"kh-trizeps-ueberkopf","name":"Kurzhantel-Trizepsstrecken über Kopf","en":"Overhead Dumbbell Extension","img":"Standing_Dumbbell_Triceps_Extension","eq":"Kurzhantel","type":"weight","area":"Arme","p":["Trizeps"],"why":"Langer Trizepskopf in Dehnung, einfach mit einer Hantel.","how":"Hantel mit beiden Händen über dem Kopf. Hinter den Kopf absenken und wieder strecken, Ellbogen zeigen nach vorn.","err":"Ellbogen öffnen sich weit, Hohlkreuz."},{"id":"kh-trizeps-liegend","name":"Liegendes Kurzhantel-Trizepsstrecken","en":"Lying Dumbbell Triceps Extension","img":"Lying_Dumbbell_Tricep_Extension","eq":"Kurzhantel","type":"weight","area":"Arme","p":["Trizeps"],"why":"Gelenkschonende Alternative zum Stirndrücken mit der Stange.","how":"Liegend, Hanteln mit neutralem Griff über der Brust. Neben den Kopf absenken und strecken.","err":"Oberarme kippen nach hinten."},{"id":"kickbacks","name":"Trizeps-Kickbacks","en":"Triceps Kickback","img":"Tricep_Dumbbell_Kickback","eq":"Kurzhantel","type":"weight","area":"Arme","p":["Trizeps"],"why":"Gute Isolation mit starker Anspannung am Ende der Bewegung.","how":"Oberkörper vorgebeugt, Oberarm parallel zum Körper. Unterarm nach hinten strecken und kurz halten.","err":"Oberarm sinkt ab, Schwung."},{"id":"dips-trizeps","name":"Dips (Trizeps)","en":"Triceps Dips","img":"Dips_-_Triceps_Version","eq":"Dipbarren","type":"bw","area":"Arme","p":["Trizeps"],"s":["Brust","Vordere Schulter"],"why":"Schwere Trizepsübung mit dem eigenen Körper, mit Gewichtsgürtel steigerbar.","how":"Oberkörper aufrecht, Ellbogen nah am Körper. Absenken bis etwa 90 Grad im Ellbogen und hochdrücken.","err":"Schultern ziehen zu den Ohren, zu tief absenken."},{"id":"bankdips","name":"Bankdips","en":"Bench Dips","img":"Bench_Dips","eq":"Körpergewicht","type":"bw","area":"Arme","p":["Trizeps"],"s":["Vordere Schulter","Brust"],"why":"Einsteigerfreundliche Trizepsübung. Füße erhöhen oder Gewicht auf den Schoß machen sie schwerer.","how":"Hände hinter dir auf der Bank, Beine gestreckt. Gerade nach unten absenken und hochdrücken.","err":"Zu tief absenken belastet die Schulter."},{"id":"enge-liegestuetz","name":"Enge Liegestütz (Diamond)","en":"Diamond Push-up","img":"Push-Ups_-_Close_Triceps_Position","eq":"Körpergewicht","type":"bw","area":"Arme","p":["Trizeps"],"s":["Brust","Vordere Schulter"],"why":"Trizeps-Variante des Liegestützes ohne Geräte.","how":"Hände unter der Brust eng zusammen. Ellbogen nah am Körper absenken und hochdrücken.","err":"Ellbogen gehen weit nach außen."},{"id":"klimmzuege","name":"Klimmzüge","en":"Pull-up","img":"Pullups","eq":"Klimmzugstange","type":"bw","area":"Rücken","p":["Latissimus"],"s":["Bizeps","Oberer Rücken","Unterarme"],"why":"Die beste Körpergewichtsübung für einen breiten Rücken. Mit Gewichtsgürtel endlos steigerbar.","how":"Obergriff etwas breiter als schulterbreit. Aus dem Hang zuerst die Schulterblätter nach unten ziehen, dann hoch, bis das Kinn über der Stange ist. Kontrolliert ganz absenken.","err":"Halbe Wiederholungen, Schwung aus den Beinen, Schultern zu den Ohren."},{"id":"chin-ups","name":"Chin-ups (Untergriff)","en":"Chin-up","img":"Chin-Up","eq":"Klimmzugstange","type":"bw","area":"Rücken","p":["Latissimus"],"s":["Bizeps","Oberer Rücken"],"why":"Klimmzug mit mehr Bizeps, meist etwas leichter als im Obergriff.","how":"Untergriff schulterbreit, Brust Richtung Stange ziehen, kontrolliert absenken.","err":"Unten nicht ganz strecken, Kopf nach vorn strecken statt hochzuziehen."},{"id":"negative-klimmzuege","name":"Negative Klimmzüge","en":"Negative Pull-up","eq":"Klimmzugstange","type":"bw","area":"Rücken","p":["Latissimus"],"s":["Bizeps","Oberer Rücken"],"why":"Der schnellste Weg zum ersten sauberen Klimmzug.","how":"Mit Sprung oder von einem Kasten in die obere Position, dann 3 bis 5 Sekunden langsam absenken.","err":"Unten einfach fallen lassen statt kontrolliert abzusenken."},{"id":"klimmzuege-band","name":"Klimmzüge mit Band","en":"Band Assisted Pull-up","img":"Band_Assisted_Pull-Up","eq":"Klimmzugstange","type":"bw","area":"Rücken","p":["Latissimus"],"s":["Bizeps","Oberer Rücken"],"why":"Das Band nimmt Gewicht ab, so schaffst du volle Wiederholungen.","how":"Band an der Stange befestigen, Fuß oder Knie hinein. Wie beim normalen Klimmzug ziehen.","err":"Unten aus dem Band schnellen lassen."},{"id":"archer-klimmzuege","name":"Archer-Klimmzüge","en":"Archer Pull-up","eq":"Klimmzugstange","type":"bw","area":"Rücken","p":["Latissimus"],"s":["Bizeps","Oberer Rücken"],"why":"Verlagert das Gewicht auf einen Arm. Vorstufe zum einarmigen Klimmzug.","how":"Sehr breiter Griff. Zu einer Hand hochziehen, der andere Arm bleibt fast gestreckt. Seiten abwechseln.","err":"Der gestreckte Arm zieht zu stark mit."},{"id":"schulterblatt-klimmzuege","name":"Schulterblatt-Klimmzüge","en":"Scapular Pull-up","img":"Scapular_Pull-Up","eq":"Klimmzugstange","type":"bw","area":"Rücken","p":["Oberer Rücken"],"s":["Latissimus","Trapez"],"why":"Lernt dich, die Schulterblätter zu kontrollieren. Wichtige Vorübung für Klimmzüge und Muscle-ups.","how":"Im Hang mit gestreckten Armen nur die Schulterblätter nach unten ziehen, sodass der Körper ein Stück steigt. Langsam zurück.","err":"Arme beugen."},{"id":"dead-hang","name":"Dead Hang (Hängen)","en":"Dead Hang","eq":"Klimmzugstange","type":"bw","area":"Arme","p":["Unterarme"],"s":["Latissimus"],"why":"Stärkt die Griffkraft und entlastet die Schultern. Gute Vorbereitung für Klimmzüge.","how":"Mit gestreckten Armen an der Stange hängen, Schultern leicht aktiv. Trag die Sekunden bei Wdh ein.","err":"Schultern komplett hängen lassen, wenn sie schmerzen."},{"id":"muscle-up","name":"Muscle-up","en":"Muscle-up","img":"Muscle_Up","eq":"Klimmzugstange","type":"bw","area":"Rücken","p":["Latissimus"],"s":["Brust","Trizeps","Bizeps","Oberer Rücken"],"why":"Verbindet Klimmzug und Dip. Ein Meilenstein im Calisthenics.","how":"Explosiver Klimmzug bis zur Brust oder Hüfte, Handgelenke über die Stange drehen und oben in den Stütz drücken. Voraussetzung sind etwa 10 saubere Klimmzüge und Dips.","err":"Ein Arm geht zuerst durch, zu wenig Zugkraft nach oben."},{"id":"front-lever","name":"Front Lever","en":"Front Lever","eq":"Klimmzugstange","type":"bw","area":"Rücken","p":["Latissimus"],"s":["Bauch","Oberer Rücken","Hintere Schulter"],"why":"Statische Halteübung für extreme Rücken- und Rumpfkraft.","how":"Im Hang mit gestreckten Armen den Körper waagerecht halten, Gesicht nach oben. Stufen: Tuck (Knie angezogen), Advanced Tuck, ein Bein, Grätsche, voller Lever. Sekunden bei Wdh eintragen.","err":"Arme beugen sich, die Hüfte hängt durch."},{"id":"back-lever","name":"Back Lever","en":"Back Lever","eq":"Ringe","type":"bw","area":"Rücken","p":["Latissimus"],"s":["Brust","Bizeps","Bauch"],"why":"Statische Halteübung für Rücken, Brust und Bizepssehnen. Meist leichter als der Front Lever.","how":"Aus dem Hang nach hinten durchdrehen und den Körper mit dem Gesicht nach unten waagerecht halten. Mit angezogenen Knien beginnen. Sekunden eintragen.","err":"Zu schnell zu weit gehen, die Bizepssehne braucht Gewöhnung."},{"id":"latziehen-breit","name":"Latziehen breit","en":"Wide-Grip Lat Pulldown","img":"Wide-Grip_Lat_Pulldown","eq":"Kabelzug","type":"weight","area":"Rücken","p":["Latissimus"],"s":["Bizeps","Oberer Rücken"],"why":"Rückenbreite mit genau dosierbarem Gewicht, ideal vor oder statt Klimmzügen.","how":"Griff breit, Oberkörper leicht zurückgelehnt. Stange zur oberen Brust ziehen, Ellbogen nach unten und hinten. Oben die Arme fast ganz strecken.","err":"Hinter den Nacken ziehen, starkes Zurücklehnen mit Schwung, nur mit den Armen ziehen."},{"id":"latziehen-eng","name":"Latziehen eng (V-Griff)","en":"Close-Grip Pulldown","img":"V-Bar_Pulldown","eq":"Kabelzug","type":"weight","area":"Rücken","p":["Latissimus"],"s":["Bizeps","Oberer Rücken"],"why":"Längerer Zugweg, trifft den unteren Latissimus stärker.","how":"V-Griff, Oberkörper leicht zurück. Griff zur Brust ziehen, Ellbogen eng am Körper nach unten.","err":"Oberkörper kippt weit nach hinten."},{"id":"latziehen-untergriff","name":"Latziehen im Untergriff","en":"Underhand Pulldown","img":"Underhand_Cable_Pulldowns","eq":"Kabelzug","type":"weight","area":"Rücken","p":["Latissimus"],"s":["Bizeps"],"why":"Mehr Bizeps und ein langer Zugweg für den Latissimus.","how":"Untergriff schulterbreit, Stange zur oberen Brust ziehen, Ellbogen nach unten.","err":"Mit den Armen curlen statt mit dem Rücken zu ziehen."},{"id":"latziehen-einarmig","name":"Einarmiges Latziehen","en":"Single-Arm Pulldown","img":"One_Arm_Lat_Pulldown","eq":"Kabelzug","type":"weight","area":"Rücken","p":["Latissimus"],"s":["Bizeps"],"why":"Bessere Dehnung und volle Konzentration auf jede Seite.","how":"Griff mit einer Hand, Arm oben gestreckt. Ellbogen zur Hüfte ziehen, oben voll dehnen.","err":"Oberkörper dreht sich weg."},{"id":"langhantelrudern","name":"Langhantelrudern vorgebeugt","en":"Barbell Row","img":"Bent_Over_Barbell_Row","eq":"Langhantel","type":"weight","area":"Rücken","p":["Oberer Rücken"],"s":["Latissimus","Bizeps","Unterer Rücken","Hintere Schulter"],"why":"Grundübung für einen dicken Rücken, trainiert die ganze Körperrückseite mit.","how":"Hüfte nach hinten schieben, Oberkörper etwa 45 Grad oder tiefer, Rücken gerade. Stange zum Bauchnabel ziehen, Schulterblätter zusammen, kontrolliert absenken.","err":"Runder Rücken, der Oberkörper richtet sich mit Schwung auf."},{"id":"langhantelrudern-untergriff","name":"Langhantelrudern im Untergriff","en":"Reverse Grip Barbell Row","img":"Reverse_Grip_Bent-Over_Rows","eq":"Langhantel","type":"weight","area":"Rücken","p":["Latissimus"],"s":["Oberer Rücken","Bizeps","Unterer Rücken"],"why":"Mehr Latissimus und Bizeps als im Obergriff.","how":"Untergriff schulterbreit, vorgebeugt. Stange zum Bauch ziehen, Ellbogen nah am Körper.","err":"Aufrichten mit Schwung."},{"id":"kh-rudern","name":"Einarmiges Kurzhantelrudern","en":"One-Arm Dumbbell Row","img":"One-Arm_Dumbbell_Row","eq":"Kurzhantel","type":"weight","area":"Rücken","p":["Latissimus"],"s":["Oberer Rücken","Bizeps","Hintere Schulter"],"why":"Großer Bewegungsweg und stabile Position durch die Bank, jede Seite einzeln.","how":"Knie und Hand auf der Bank, Rücken flach. Hantel zur Hüfte ziehen, Ellbogen nah am Körper. Unten voll dehnen.","err":"Oberkörper dreht auf, Hantel zur Brust statt zur Hüfte."},{"id":"kh-rudern-brustgestuetzt","name":"Brustgestütztes Kurzhantelrudern","en":"Chest-Supported Dumbbell Row","img":"Dumbbell_Incline_Row","eq":"Kurzhantel","type":"weight","area":"Rücken","p":["Oberer Rücken"],"s":["Latissimus","Hintere Schulter","Bizeps"],"why":"Die Brust liegt auf, so arbeitet nur der Rücken. Schummeln ist kaum möglich.","how":"Bauch auf der Schrägbank, Hanteln hängen. Zum Körper ziehen, Schulterblätter zusammen.","err":"Brust hebt vom Polster ab."},{"id":"kabelrudern","name":"Kabelrudern sitzend","en":"Seated Cable Row","img":"Seated_Cable_Rows","eq":"Kabelzug","type":"weight","area":"Rücken","p":["Oberer Rücken"],"s":["Latissimus","Bizeps","Hintere Schulter"],"why":"Rückendicke mit konstanter Spannung, gut für Drop Sets.","how":"Aufrecht sitzen, Knie leicht gebeugt. Griff zum Bauch ziehen, Brust raus, Schulterblätter zusammen. Langsam nach vorn, bis der Rücken gedehnt ist.","err":"Oberkörper schwingt vor und zurück."},{"id":"t-bar-rudern","name":"T-Bar-Rudern","en":"T-Bar Row","img":"T-Bar_Row_with_Handle","eq":"Langhantel","type":"weight","area":"Rücken","p":["Oberer Rücken"],"s":["Latissimus","Bizeps","Unterer Rücken"],"why":"Schweres Rudern für Rückendicke, stabiler als freies Langhantelrudern.","how":"Über der Stange stehen, Rücken gerade, vorgebeugt. Griff zur Brust ziehen und kontrolliert absenken.","err":"Runder Rücken, Aufrichten mit Schwung."},{"id":"rudermaschine","name":"Rudermaschine","en":"Machine Row","img":"Leverage_Iso_Row","eq":"Maschine","type":"weight","area":"Rücken","p":["Oberer Rücken"],"s":["Latissimus","Bizeps","Hintere Schulter"],"why":"Brustgestützt und damit ohne Belastung des unteren Rückens.","how":"Brust ans Polster, Griffe zum Körper ziehen, Schulterblätter zusammen, langsam zurück.","err":"Brust löst sich vom Polster."},{"id":"ueberzuege-kabel","name":"Überzüge am Kabel","en":"Straight-Arm Pulldown","img":"Straight-Arm_Pulldown","eq":"Kabelzug","type":"weight","area":"Rücken","p":["Latissimus"],"s":["Trizeps"],"why":"Isoliert den Latissimus ohne Bizeps. Gut zum Vorermüden oder als Abschluss.","how":"Arme fast gestreckt, Stange oder Seil im Bogen bis zu den Oberschenkeln ziehen, Oberkörper leicht vorgeneigt.","err":"Arme beugen, dann wird es zum Trizepsdrücken."},{"id":"australian-pullups","name":"Australian Pull-ups","en":"Inverted Row","img":"Inverted_Row","eq":"Körpergewicht","type":"bw","area":"Rücken","p":["Oberer Rücken"],"s":["Latissimus","Bizeps","Hintere Schulter"],"why":"Waagerechtes Ziehen mit dem eigenen Körper. Grundlage für Klimmzüge und Front Lever.","how":"Unter einer Stange auf Hüfthöhe hängen, Körper gerade. Brust zur Stange ziehen, kontrolliert absenken. Je flacher der Körper, desto schwerer.","err":"Hüfte hängt durch, Kinn statt Brust zur Stange."},{"id":"kreuzheben","name":"Kreuzheben","en":"Deadlift","img":"Barbell_Deadlift","eq":"Langhantel","type":"weight","area":"Rücken","p":["Unterer Rücken","Gesäß"],"s":["Beinbeuger","Quadrizeps","Trapez","Unterarme","Oberer Rücken"],"why":"Die Grundübung für Gesamtkraft. Trainiert die komplette Rückseite des Körpers.","how":"Stange über dem Mittelfuß, schulterbreiter Griff. Hüfte runter, Brust raus, Rücken gerade. Stange körpernah hochziehen, indem du die Beine streckst und die Hüfte nach vorn bringst. Oben aufrecht stehen, kontrolliert absetzen.","err":"Runder Rücken, Stange entfernt sich vom Körper, die Hüfte schießt zuerst hoch."},{"id":"rack-pulls","name":"Rack Pulls","en":"Rack Pull","img":"Rack_Pulls","eq":"Langhantel","type":"weight","area":"Rücken","p":["Unterer Rücken"],"s":["Trapez","Gesäß","Oberer Rücken","Unterarme"],"why":"Kreuzheben aus erhöhter Position. Schwere Lasten für oberen Rücken, Trapez und Griff.","how":"Stange auf Kniehöhe im Rack. Wie beim Kreuzheben greifen und mit geradem Rücken aufrichten.","err":"Ins Hohlkreuz überstrecken."},{"id":"hyperextensions","name":"Hyperextensions (Rückenstrecker)","en":"Back Extension","img":"Hyperextensions_Back_Extensions","eq":"Hyperextension-Bank","type":"bw","area":"Rücken","p":["Unterer Rücken"],"s":["Gesäß","Beinbeuger"],"why":"Stärkt unteren Rücken und Gesäß. Guter Schutz für schwere Grundübungen.","how":"Hüfte am Polster, Oberkörper kontrolliert absenken und bis zur geraden Linie aufrichten. Mit einer Hantelscheibe vor der Brust steigerbar.","err":"Ins Hohlkreuz überstrecken, Schwung."},{"id":"shrugs-lh","name":"Shrugs (Langhantel)","en":"Barbell Shrug","img":"Barbell_Shrug","eq":"Langhantel","type":"weight","area":"Rücken","p":["Trapez"],"s":["Unterarme"],"why":"Baut den oberen Trapez und den Nacken auf.","how":"Stange vor dem Körper, Arme gestreckt. Schultern gerade nach oben ziehen, oben kurz halten, langsam absenken.","err":"Schultern kreisen lassen, Arme beugen."},{"id":"shrugs-kh","name":"Shrugs (Kurzhantel)","en":"Dumbbell Shrug","img":"Dumbbell_Shrug","eq":"Kurzhantel","type":"weight","area":"Rücken","p":["Trapez"],"s":["Unterarme"],"why":"Trapez mit freiem Bewegungsweg der Hanteln.","how":"Hanteln seitlich, Schultern gerade nach oben ziehen und kurz halten.","err":"Zu kurze Bewegung, Kopf nach vorn schieben."},{"id":"lh-curls","name":"Langhantel-Curls","en":"Barbell Curl","img":"Barbell_Curl","eq":"Langhantel","type":"weight","area":"Arme","p":["Bizeps"],"s":["Unterarme"],"why":"Die klassische Masseübung für den Bizeps, viel Gewicht möglich.","how":"Stehend, schulterbreiter Untergriff, Ellbogen am Körper. Stange zur Brust curlen und langsam absenken.","err":"Oberkörper schwingt mit, Ellbogen wandern nach vorn."},{"id":"sz-curls","name":"SZ-Curls","en":"EZ-Bar Curl","img":"EZ-Bar_Curl","eq":"SZ-Stange","type":"weight","area":"Arme","p":["Bizeps"],"s":["Unterarme"],"why":"Wie Langhantel-Curls, aber angenehmer für die Handgelenke.","how":"SZ-Stange im schrägen Untergriff, Ellbogen am Körper. Hochcurlen und kontrolliert absenken.","err":"Schwung aus dem Rücken."},{"id":"kh-curls","name":"Kurzhantel-Curls","en":"Dumbbell Curl","img":"Dumbbell_Bicep_Curl","eq":"Kurzhantel","type":"weight","area":"Arme","p":["Bizeps"],"s":["Unterarme"],"why":"Jede Seite einzeln. Mit der Handdrehung spannt der Bizeps voll an.","how":"Hanteln seitlich, beim Hochcurlen die Handflächen nach oben drehen. Oben kurz anspannen, langsam absenken.","err":"Ellbogen wandern nach vorn, Schwung."},{"id":"hammer-curls","name":"Hammer Curls","en":"Hammer Curl","img":"Hammer_Curls","eq":"Kurzhantel","type":"weight","area":"Arme","p":["Bizeps","Unterarme"],"why":"Trainiert den Oberarmmuskel unter dem Bizeps und den Unterarm. Macht den Arm dicker.","how":"Neutraler Griff, Daumen zeigen nach oben. Hanteln hochcurlen, ohne die Hand zu drehen.","err":"Schwung, Ellbogen lösen sich vom Körper."},{"id":"hammer-curls-seil","name":"Hammer Curls am Seil","en":"Rope Hammer Curl","img":"Cable_Hammer_Curls_-_Rope_Attachment","eq":"Kabelzug","type":"weight","area":"Arme","p":["Bizeps","Unterarme"],"why":"Hammer Curls mit konstanter Spannung.","how":"Seil an der unteren Rolle, neutraler Griff. Hochcurlen, Ellbogen bleiben am Körper.","err":"Oberkörper lehnt sich zurück."},{"id":"schraegbank-curls","name":"Schrägbank-Curls","en":"Incline Dumbbell Curl","img":"Incline_Dumbbell_Curl","eq":"Kurzhantel","type":"weight","area":"Arme","p":["Bizeps"],"why":"Bizeps in starker Dehnung, besonders der lange Kopf.","how":"Auf der Schrägbank (45 bis 60 Grad) zurückgelehnt, Arme hängen hinter dem Körper. Curlen, ohne die Ellbogen nach vorn zu bewegen.","err":"Schultern rollen nach vorn, zu schwer."},{"id":"scott-curls","name":"Scott-Curls","en":"Preacher Curl","img":"Preacher_Curl","eq":"SZ-Stange","type":"weight","area":"Arme","p":["Bizeps"],"why":"Kein Schummeln möglich. Betont den unteren Teil des Bizeps.","how":"Oberarme flach auf dem Polster. Stange curlen, unten fast strecken, aber nicht ins Gelenk fallen lassen.","err":"Unten abrupt durchstrecken."},{"id":"bizepsmaschine","name":"Bizepsmaschine","en":"Machine Preacher Curl","img":"Machine_Preacher_Curls","eq":"Maschine","type":"weight","area":"Arme","p":["Bizeps"],"why":"Gleichmäßige Spannung, ideal für Drop Sets.","how":"Ellbogen auf Höhe der Drehachse, curlen und kontrolliert zurück.","err":"Sitz falsch eingestellt, Schultern heben sich."},{"id":"konzentrationscurls","name":"Konzentrationscurls","en":"Concentration Curl","img":"Concentration_Curls","eq":"Kurzhantel","type":"weight","area":"Arme","p":["Bizeps"],"why":"Maximale Anspannung und voller Fokus auf eine Seite.","how":"Sitzend, Ellbogen an der Innenseite des Oberschenkels. Hantel hochcurlen, oben anspannen.","err":"Mit dem Oberkörper nachhelfen."},{"id":"kabel-curls","name":"Kabel-Curls","en":"Cable Curl","img":"Standing_Biceps_Cable_Curl","eq":"Kabelzug","type":"weight","area":"Arme","p":["Bizeps"],"s":["Unterarme"],"why":"Konstante Spannung über den ganzen Bewegungsweg.","how":"Stange an der unteren Rolle, Ellbogen am Körper. Hochcurlen und langsam ablassen.","err":"Ellbogen wandern nach vorn."},{"id":"spider-curls","name":"Spider Curls","en":"Spider Curl","img":"Spider_Curl","eq":"SZ-Stange","type":"weight","area":"Arme","p":["Bizeps"],"why":"Arme hängen senkrecht, das betont die Spitzenkontraktion.","how":"Mit dem Bauch auf der Schrägbank, Arme hängen nach unten. Curlen und oben fest anspannen.","err":"Schwung aus den Schultern."},{"id":"zottman-curls","name":"Zottman Curls","en":"Zottman Curl","img":"Zottman_Curl","eq":"Kurzhantel","type":"weight","area":"Arme","p":["Bizeps"],"s":["Unterarme"],"why":"Hoch im Untergriff, runter im Obergriff. Bizeps und Unterarm in einer Übung.","how":"Im Untergriff hochcurlen, oben die Hände nach unten drehen und langsam im Obergriff absenken.","err":"Absenken zu schnell."},{"id":"reverse-curls","name":"Reverse Curls","en":"Reverse Curl","img":"Reverse_Barbell_Curl","eq":"Langhantel","type":"weight","area":"Arme","p":["Unterarme"],"s":["Bizeps"],"why":"Trainiert Unterarmstrecker und den Oberarmspeichenmuskel.","how":"Stange im Obergriff, Ellbogen am Körper, hochcurlen.","err":"Handgelenke knicken ab."},{"id":"handgelenk-curls","name":"Handgelenk-Curls","en":"Wrist Curl","img":"Palms-Up_Barbell_Wrist_Curl_Over_A_Bench","eq":"Langhantel","type":"weight","area":"Arme","p":["Unterarme"],"why":"Isoliert die Unterarmbeuger für einen stärkeren Griff.","how":"Unterarme auf der Bank, Handgelenke über der Kante. Stange nur mit dem Handgelenk nach oben rollen.","err":"Unterarme heben ab."},{"id":"reverse-handgelenk-curls","name":"Reverse Handgelenk-Curls","en":"Reverse Wrist Curl","img":"Palms-Down_Wrist_Curl_Over_A_Bench","eq":"Langhantel","type":"weight","area":"Arme","p":["Unterarme"],"why":"Trainiert die Unterarmstrecker, Ausgleich zu viel Greifen.","how":"Unterarme auf der Bank, Obergriff. Handgelenk nach oben strecken.","err":"Zu schwer, nur kleine Bewegung."},{"id":"farmers-walk","name":"Farmer’s Walk","en":"Farmer’s Walk","img":"Farmers_Walk","eq":"Kurzhantel","type":"weight","area":"Arme","p":["Unterarme"],"s":["Trapez","Bauch","Gesäß"],"why":"Griffkraft, Trapez und Rumpfstabilität in einer Übung.","how":"Schwere Hanteln seitlich, aufrecht und mit kurzen Schritten gehen. Trag bei Wdh Meter oder Sekunden ein.","err":"Schultern sacken nach vorn, Oberkörper kippt."},{"id":"kniebeuge","name":"Kniebeuge","en":"Back Squat","img":"Barbell_Squat","eq":"Langhantel","type":"weight","area":"Beine","p":["Quadrizeps","Gesäß"],"s":["Adduktoren","Beinbeuger","Unterer Rücken","Bauch"],"why":"Die Grundübung für Beinkraft und Masse. Trainiert den ganzen Unterkörper.","how":"Stange auf dem oberen Rücken, Füße etwa schulterbreit, Zehen leicht nach außen. Hüfte nach hinten und unten, Knie folgen den Zehen. Mindestens bis die Oberschenkel waagerecht sind, dann kraftvoll hochdrücken.","err":"Knie fallen nach innen, Fersen heben ab, der Rücken rundet sich unten."},{"id":"frontkniebeuge","name":"Frontkniebeuge","en":"Front Squat","img":"Front_Barbell_Squat","eq":"Langhantel","type":"weight","area":"Beine","p":["Quadrizeps"],"s":["Gesäß","Bauch","Oberer Rücken"],"why":"Aufrechter Oberkörper, betont den Quadrizeps und schont den unteren Rücken.","how":"Stange vorn auf den Schultern, Ellbogen hoch. Tief beugen, Oberkörper bleibt aufrecht.","err":"Ellbogen sinken, die Stange rollt nach vorn."},{"id":"goblet-squat","name":"Goblet Squat","en":"Goblet Squat","img":"Goblet_Squat","eq":"Kurzhantel","type":"weight","area":"Beine","p":["Quadrizeps","Gesäß"],"s":["Bauch","Adduktoren"],"why":"Lernt die saubere Kniebeuge. Gut zum Aufwärmen oder für den Einstieg.","how":"Hantel vor der Brust, Ellbogen nach unten. Tief zwischen die Knie setzen und hochdrücken.","err":"Fersen heben ab, Rücken rundet sich."},{"id":"beinpresse","name":"Beinpresse","en":"Leg Press","img":"Leg_Press","eq":"Maschine","type":"weight","area":"Beine","p":["Quadrizeps","Gesäß"],"s":["Beinbeuger","Adduktoren"],"why":"Schwere Beinarbeit ohne Belastung des Rückens. Ideal für Drop Sets.","how":"Füße schulterbreit mittig auf der Platte. Absenken, bis die Knie etwa 90 Grad oder tiefer gebeugt sind, ohne dass das Becken abkippt. Hochdrücken, Knie nicht ganz durchstrecken.","err":"Becken hebt sich vom Polster, Knie fallen nach innen, Knie schlagen oben durch."},{"id":"hackenschmidt","name":"Hackenschmidt-Kniebeuge","en":"Hack Squat","img":"Hack_Squat","eq":"Maschine","type":"weight","area":"Beine","p":["Quadrizeps"],"s":["Gesäß"],"why":"Sehr gezielter Reiz für den Quadrizeps bei stabiler Führung.","how":"Rücken am Polster, Füße schulterbreit. Tief absenken und hochdrücken.","err":"Fersen heben ab, zu kurze Bewegung."},{"id":"smith-kniebeuge","name":"Kniebeuge an der Smith-Maschine","en":"Smith Machine Squat","img":"Smith_Machine_Squat","eq":"Smith-Maschine","type":"weight","area":"Beine","p":["Quadrizeps","Gesäß"],"s":["Adduktoren"],"why":"Geführte Kniebeuge, gut für hohe Wiederholungen ohne Partner.","how":"Füße etwas vor der Stange, tief beugen und hochdrücken.","err":"Füße zu weit hinten, Knie werden stark belastet."},{"id":"bulgarian-split-squat","name":"Bulgarian Split Squat","en":"Bulgarian Split Squat","img":"Split_Squat_with_Dumbbells","eq":"Kurzhantel","type":"weight","area":"Beine","p":["Quadrizeps","Gesäß"],"s":["Adduktoren","Beinbeuger"],"why":"Eine der effektivsten Beinübungen überhaupt. Deckt Seitenunterschiede auf.","how":"Hinterer Fuß auf einer Bank, vorderer Fuß einen großen Schritt davor. Gerade nach unten, bis das hintere Knie fast den Boden berührt. Über die vordere Ferse hochdrücken.","err":"Vorderer Fuß zu nah an der Bank, Knie fällt nach innen."},{"id":"ausfallschritte","name":"Ausfallschritte","en":"Lunge","img":"Dumbbell_Lunges","eq":"Kurzhantel","type":"weight","area":"Beine","p":["Quadrizeps","Gesäß"],"s":["Beinbeuger","Adduktoren"],"why":"Beinkraft und Gleichgewicht, sehr alltagsnah.","how":"Großer Schritt nach vorn, beide Knie etwa 90 Grad. Über das vordere Bein zurückdrücken.","err":"Knie fällt nach innen, Oberkörper kippt nach vorn."},{"id":"walking-lunges","name":"Walking Lunges","en":"Walking Lunge","img":"Bodyweight_Walking_Lunge","eq":"Kurzhantel","type":"weight","area":"Beine","p":["Quadrizeps","Gesäß"],"s":["Beinbeuger","Adduktoren"],"why":"Ausfallschritte im Gehen, fordern zusätzlich Gleichgewicht und Ausdauer.","how":"Mit Hanteln im Wechsel nach vorn ausfallen und direkt mit dem nächsten Schritt weitergehen.","err":"Zu kurze Schritte, hinteres Knie knallt auf."},{"id":"step-ups","name":"Step-ups","en":"Step-up","img":"Dumbbell_Step_Ups","eq":"Kurzhantel","type":"weight","area":"Beine","p":["Quadrizeps","Gesäß"],"s":["Beinbeuger"],"why":"Gesäß und Quadrizeps einseitig, gut für Knie und Gleichgewicht.","how":"Ganzer Fuß auf der Box, nur mit dem oberen Bein hochdrücken, langsam zurück.","err":"Vom unteren Bein abdrücken."},{"id":"beinstrecker","name":"Beinstrecker","en":"Leg Extension","img":"Leg_Extensions","eq":"Maschine","type":"weight","area":"Beine","p":["Quadrizeps"],"why":"Isoliert den Quadrizeps. Gut zum Abschluss oder für Drop Sets.","how":"Knie auf Höhe der Drehachse. Beine strecken, oben kurz halten, langsam absenken.","err":"Schwung, das Gesäß hebt ab."},{"id":"sissy-squat","name":"Sissy Squat","en":"Sissy Squat","img":"Weighted_Sissy_Squat","eq":"Körpergewicht","type":"bw","area":"Beine","p":["Quadrizeps"],"why":"Isoliert den Quadrizeps in starker Dehnung, auch ohne Maschine.","how":"An etwas festhalten, auf die Zehenballen, Knie nach vorn schieben und den Körper als Linie von Knie bis Kopf nach hinten neigen. Zurück nach oben.","err":"Hüfte knickt ein, zu tief für den Anfang."},{"id":"pistol-squat","name":"Pistol Squat","en":"Pistol Squat","img":"Kettlebell_Pistol_Squat","eq":"Körpergewicht","type":"bw","area":"Beine","p":["Quadrizeps","Gesäß"],"s":["Bauch","Adduktoren"],"why":"Einbeinige Kniebeuge. Verbindet Kraft, Beweglichkeit und Gleichgewicht.","how":"Auf einem Bein stehen, das andere gestreckt nach vorn. Langsam ganz nach unten, die Ferse bleibt am Boden, wieder hochdrücken. Zum Einstieg auf eine Bank absetzen.","err":"Ferse hebt ab, Knie fällt nach innen."},{"id":"rumaenisches-kreuzheben","name":"Rumänisches Kreuzheben","en":"Romanian Deadlift","img":"Romanian_Deadlift","eq":"Langhantel","type":"weight","area":"Beine","p":["Beinbeuger","Gesäß"],"s":["Unterer Rücken","Unterarme"],"why":"Die beste Übung für Beinbeuger und Gesäß in der Dehnung.","how":"Stehend mit leicht gebeugten Knien. Hüfte nach hinten schieben, die Stange an den Beinen entlang bis unter die Knie gleiten lassen, Rücken gerade. Hüfte nach vorn bringen und aufrichten.","err":"Rücken rundet sich, Knie beugen zu stark, Stange entfernt sich vom Bein."},{"id":"rumaenisches-kreuzheben-kh","name":"Rumänisches Kreuzheben mit Kurzhanteln","en":"Dumbbell Romanian Deadlift","img":"Stiff-Legged_Dumbbell_Deadlift","eq":"Kurzhantel","type":"weight","area":"Beine","p":["Beinbeuger","Gesäß"],"s":["Unterer Rücken","Unterarme"],"why":"Wie mit der Langhantel, aber mit freierem Bewegungsweg.","how":"Hanteln vor den Oberschenkeln, Hüfte nach hinten, Hanteln am Bein entlang bis unter die Knie.","err":"Runder Rücken."},{"id":"sumo-kreuzheben","name":"Sumo-Kreuzheben","en":"Sumo Deadlift","img":"Sumo_Deadlift","eq":"Langhantel","type":"weight","area":"Beine","p":["Gesäß","Quadrizeps"],"s":["Adduktoren","Beinbeuger","Unterer Rücken","Trapez"],"why":"Breiter Stand, aufrechter Oberkörper. Mehr Beine und weniger unterer Rücken.","how":"Füße weit, Zehen nach außen, Griff zwischen den Beinen. Knie nach außen drücken und die Stange mit geradem Rücken hochziehen.","err":"Knie fallen nach innen, Hüfte startet zu hoch."},{"id":"good-mornings","name":"Good Mornings","en":"Good Morning","img":"Good_Morning","eq":"Langhantel","type":"weight","area":"Beine","p":["Beinbeuger"],"s":["Unterer Rücken","Gesäß"],"why":"Beinbeuger und unterer Rücken, guter Zusatz für Kniebeuge und Kreuzheben.","how":"Stange auf dem oberen Rücken, Knie leicht gebeugt. Hüfte nach hinten schieben, bis der Oberkörper fast waagerecht ist, aufrichten.","err":"Rücken rundet sich, zu schwer."},{"id":"beinbeuger-liegend","name":"Beinbeuger liegend","en":"Lying Leg Curl","img":"Lying_Leg_Curls","eq":"Maschine","type":"weight","area":"Beine","p":["Beinbeuger"],"s":["Waden"],"why":"Isoliert die Beinbeuger. Wichtig für ausgewogene Beine und gesunde Knie.","how":"Bauchlage, Polster über den Fersen. Fersen zum Gesäß ziehen, die Hüfte bleibt auf dem Polster.","err":"Hüfte hebt sich, Schwung."},{"id":"beinbeuger-sitzend","name":"Beinbeuger sitzend","en":"Seated Leg Curl","img":"Seated_Leg_Curl","eq":"Maschine","type":"weight","area":"Beine","p":["Beinbeuger"],"s":["Waden"],"why":"Durch die gebeugte Hüfte sind die Beinbeuger stärker gedehnt. Sehr effektiv für Muskelaufbau.","how":"Knie auf Höhe der Drehachse, Oberschenkel fixiert. Fersen nach unten und hinten ziehen.","err":"Oberkörper lehnt sich zurück."},{"id":"nordic-curls","name":"Nordic Curls","en":"Nordic Curl","img":"Natural_Glute_Ham_Raise","eq":"Körpergewicht","type":"bw","area":"Beine","p":["Beinbeuger"],"s":["Gesäß","Waden"],"why":"Sehr intensive Übung für die Beinbeuger mit dem eigenen Körper. Gilt als guter Schutz vor Zerrungen.","how":"Kniend, Fersen fixiert. Körper gerade halten und so langsam wie möglich nach vorn ablassen, mit den Händen abfangen und zurückdrücken.","err":"In der Hüfte abknicken."},{"id":"hip-thrust","name":"Hip Thrust","en":"Hip Thrust","img":"Barbell_Hip_Thrust","eq":"Langhantel","type":"weight","area":"Beine","p":["Gesäß"],"s":["Beinbeuger","Quadrizeps"],"why":"Die stärkste Übung für den großen Gesäßmuskel.","how":"Oberer Rücken an der Bank, Stange gepolstert auf der Hüfte. Hüfte hochdrücken, bis Oberkörper und Oberschenkel eine Linie bilden, oben fest anspannen.","err":"Ins Hohlkreuz drücken statt die Hüfte zu strecken, Füße zu weit weg."},{"id":"glute-bridge","name":"Glute Bridge","en":"Glute Bridge","img":"Barbell_Glute_Bridge","eq":"Langhantel","type":"weight","area":"Beine","p":["Gesäß"],"s":["Beinbeuger"],"why":"Gesäß vom Boden aus, einfacher aufzubauen als der Hip Thrust.","how":"Rückenlage, Füße nah am Gesäß, Stange auf der Hüfte. Hüfte hochdrücken und oben halten.","err":"Hohlkreuz statt Gesäßspannung."},{"id":"cable-pull-through","name":"Cable Pull-through","en":"Cable Pull-through","img":"Pull_Through","eq":"Kabelzug","type":"weight","area":"Beine","p":["Gesäß"],"s":["Beinbeuger"],"why":"Lernt die Hüftstreckung mit wenig Belastung für den Rücken.","how":"Rücken zum Kabelzug, Seil zwischen den Beinen. Hüfte nach hinten schieben und kraftvoll nach vorn strecken.","err":"Mit den Armen ziehen, Rücken rundet sich."},{"id":"kickbacks-kabel","name":"Kickbacks am Kabel (Gesäß)","en":"Cable Glute Kickback","img":"One-Legged_Cable_Kickback","eq":"Kabelzug","type":"weight","area":"Beine","p":["Gesäß"],"s":["Beinbeuger"],"why":"Isoliert das Gesäß einseitig.","how":"Manschette am Fuß, leicht vorgebeugt. Bein gestreckt nach hinten führen und oben anspannen.","err":"Ins Hohlkreuz gehen."},{"id":"abduktoren","name":"Abduktoren-Maschine","en":"Hip Abduction","img":"Thigh_Abductor","eq":"Maschine","type":"weight","area":"Beine","p":["Gesäß"],"why":"Trainiert den mittleren und kleinen Gesäßmuskel. Wichtig für stabile Knie und Hüfte.","how":"Polster außen an den Knien, Beine nach außen drücken und langsam zurück.","err":"Mit Schwung arbeiten."},{"id":"adduktoren","name":"Adduktoren-Maschine","en":"Hip Adduction","img":"Thigh_Adductor","eq":"Maschine","type":"weight","area":"Beine","p":["Adduktoren"],"why":"Stärkt die Oberschenkelinnenseite, die bei Kniebeugen viel mitarbeitet.","how":"Polster innen an den Knien, Beine zusammendrücken und langsam öffnen.","err":"Zu weit öffnen mit zu viel Gewicht."},{"id":"wadenheben-stehend","name":"Wadenheben stehend","en":"Standing Calf Raise","img":"Standing_Calf_Raises","eq":"Maschine","type":"weight","area":"Beine","p":["Waden"],"why":"Trainiert vor allem den zweiköpfigen Wadenmuskel.","how":"Fußballen auf der Kante, Fersen tief absenken und ganz nach oben drücken, oben kurz halten.","err":"Wippen statt voller Bewegung."},{"id":"wadenheben-sitzend","name":"Wadenheben sitzend","en":"Seated Calf Raise","img":"Seated_Calf_Raise","eq":"Maschine","type":"weight","area":"Beine","p":["Waden"],"why":"Mit gebeugtem Knie arbeitet vor allem der tiefe Wadenmuskel (Schollenmuskel).","how":"Polster auf den Oberschenkeln, Fersen tief absenken und hochdrücken.","err":"Zu schnell, keine Pause unten."},{"id":"wadenheben-beinpresse","name":"Wadenheben an der Beinpresse","en":"Leg Press Calf Raise","img":"Calf_Press_On_The_Leg_Press_Machine","eq":"Maschine","type":"weight","area":"Beine","p":["Waden"],"why":"Waden schwer trainieren ohne Wadenmaschine.","how":"Nur die Fußballen auf der Plattenkante, Beine fast gestreckt. Platte mit den Füßen wegdrücken und tief zurück.","err":"Knie beugen sich mit."},{"id":"box-jumps","name":"Box Jumps","en":"Box Jump","img":"Front_Box_Jump","eq":"Körpergewicht","type":"bw","area":"Beine","p":["Quadrizeps"],"s":["Gesäß","Waden"],"why":"Schnellkraft und Sprungkraft.","how":"Aus leichter Hocke explosiv auf die Box springen, weich landen, heruntersteigen.","err":"Rückwärts herunterspringen, harte Landung."},{"id":"jump-squats","name":"Jump Squats","en":"Jump Squat","img":"Freehand_Jump_Squat","eq":"Körpergewicht","type":"bw","area":"Beine","p":["Quadrizeps"],"s":["Gesäß","Waden"],"why":"Explosivkraft für die Beine, auch gut als Finisher.","how":"Kniebeuge und explosiv nach oben springen, weich landen und direkt in die nächste Wiederholung.","err":"Knie fallen bei der Landung nach innen."},{"id":"kettlebell-swing","name":"Kettlebell Swing","en":"Kettlebell Swing","img":"One-Arm_Kettlebell_Swings","eq":"Kettlebell","type":"weight","area":"Beine","p":["Gesäß","Beinbeuger"],"s":["Unterer Rücken","Bauch","Unterarme"],"why":"Explosive Hüftstreckung für Gesäß, Beinbeuger und Ausdauer.","how":"Kettlebell zwischen den Beinen nach hinten schwingen, Hüfte kraftvoll nach vorn strecken und die Kettlebell bis Brusthöhe schwingen lassen.","err":"Aus den Armen heben oder in die Kniebeuge gehen."},{"id":"crunches","name":"Crunches","en":"Crunch","img":"Crunches","eq":"Körpergewicht","type":"bw","area":"Bauch","p":["Bauch"],"why":"Einfache Übung für den geraden Bauchmuskel.","how":"Rückenlage, Knie gebeugt. Oberkörper einrollen, bis die Schulterblätter abheben, der untere Rücken bleibt am Boden.","err":"Am Kopf ziehen, mit Schwung hochkommen."},{"id":"kabel-crunch","name":"Kabel-Crunch (kniend)","en":"Cable Crunch","img":"Cable_Crunch","eq":"Kabelzug","type":"weight","area":"Bauch","p":["Bauch"],"why":"Bauchübung mit Gewicht, dadurch gut steigerbar.","how":"Kniend vor dem Kabelzug, Seil neben dem Kopf. Oberkörper zum Boden einrollen, die Hüfte bleibt fest.","err":"Aus der Hüfte nach vorn kippen statt einzurollen."},{"id":"bauchmaschine","name":"Bauchmaschine","en":"Ab Crunch Machine","img":"Ab_Crunch_Machine","eq":"Maschine","type":"weight","area":"Bauch","p":["Bauch"],"why":"Geführter Crunch mit Gewicht.","how":"Oberkörper gegen den Widerstand einrollen und langsam zurück.","err":"Mit den Armen ziehen."},{"id":"beinheben-haengend","name":"Beinheben hängend","en":"Hanging Leg Raise","img":"Hanging_Leg_Raise","eq":"Klimmzugstange","type":"bw","area":"Bauch","p":["Bauch"],"s":["Unterarme"],"why":"Eine der härtesten Bauchübungen, besonders für den unteren Bereich.","how":"An der Stange hängen, Beine gestreckt bis mindestens waagerecht heben und dabei das Becken leicht einrollen. Langsam absenken, ohne zu schwingen.","err":"Schwung, nur die Hüfte beugen ohne das Becken einzurollen."},{"id":"knieheben","name":"Knieheben am Dipbarren","en":"Knee Raise","img":"Knee_Hip_Raise_On_Parallel_Bars","eq":"Dipbarren","type":"bw","area":"Bauch","p":["Bauch"],"why":"Einstieg ins Beinheben.","how":"Im Stütz am Barren, Knie zur Brust ziehen und das Becken einrollen, langsam absenken.","err":"Beine fallen lassen, Schwung."},{"id":"toes-to-bar","name":"Toes to Bar","en":"Toes to Bar","eq":"Klimmzugstange","type":"bw","area":"Bauch","p":["Bauch"],"s":["Latissimus","Unterarme"],"why":"Beinheben bis zur Stange, sehr intensiv für den ganzen Rumpf.","how":"Im Hang die gestreckten Beine bis zur Stange heben, dabei leicht gegen die Stange drücken. Kontrolliert absenken.","err":"Zu viel Schwung aus dem Körper."},{"id":"beinheben-liegend","name":"Beinheben liegend","en":"Lying Leg Raise","img":"Flat_Bench_Lying_Leg_Raise","eq":"Körpergewicht","type":"bw","area":"Bauch","p":["Bauch"],"why":"Unterer Bauch, gut für Einsteiger.","how":"Auf der Bank liegend, Beine gestreckt bis senkrecht heben, langsam absenken, ohne dass der Rücken abhebt.","err":"Hohlkreuz beim Absenken."},{"id":"reverse-crunch","name":"Reverse Crunch","en":"Reverse Crunch","img":"Reverse_Crunch","eq":"Körpergewicht","type":"bw","area":"Bauch","p":["Bauch"],"why":"Rollt das Becken ein und trifft so den unteren Bauch.","how":"Rückenlage, Knie angewinkelt. Becken vom Boden einrollen und die Knie Richtung Brust bringen, langsam zurück.","err":"Schwung aus den Beinen."},{"id":"plank","name":"Plank (Unterarmstütz)","en":"Plank","img":"Plank","eq":"Körpergewicht","type":"bw","area":"Bauch","p":["Bauch"],"s":["Schräge Bauchmuskeln","Vordere Schulter"],"why":"Rumpfstabilität für alle schweren Übungen.","how":"Unterarmstütz, der Körper bildet eine gerade Linie, Bauch und Gesäß fest. Trag die Sekunden bei Wdh ein.","err":"Hüfte hängt durch oder steht zu hoch."},{"id":"seitstuetz","name":"Seitstütz","en":"Side Plank","img":"Side_Bridge","eq":"Körpergewicht","type":"bw","area":"Bauch","p":["Schräge Bauchmuskeln"],"s":["Bauch","Gesäß"],"why":"Stärkt die seitlichen Bauchmuskeln und die Hüftstabilität.","how":"Seitlich auf dem Unterarm, Körper gerade, Hüfte oben halten. Sekunden bei Wdh eintragen.","err":"Hüfte sinkt ab."},{"id":"ab-wheel","name":"Ab Wheel (Bauchroller)","en":"Ab Wheel Rollout","img":"Ab_Roller","eq":"Bauchroller","type":"bw","area":"Bauch","p":["Bauch"],"s":["Latissimus","Schräge Bauchmuskeln"],"why":"Sehr effektiv für den ganzen Rumpf, die Bauchmuskeln arbeiten in Dehnung.","how":"Kniend, Rolle unter den Schultern. Nach vorn rollen, so weit du den Rücken gerade halten kannst, mit Bauchspannung zurückziehen.","err":"Hohlkreuz, zu weit für das eigene Level."},{"id":"russian-twist","name":"Russian Twist","en":"Russian Twist","img":"Russian_Twist","eq":"Körpergewicht","type":"bw","area":"Bauch","p":["Schräge Bauchmuskeln"],"s":["Bauch"],"why":"Rotation für die seitlichen Bauchmuskeln.","how":"Sitzend, Oberkörper zurückgelehnt, Füße angehoben. Oberkörper von Seite zu Seite drehen, mit Gewicht schwerer.","err":"Nur die Arme bewegen statt den Oberkörper zu drehen."},{"id":"dead-bug","name":"Dead Bug","en":"Dead Bug","img":"Dead_Bug","eq":"Körpergewicht","type":"bw","area":"Bauch","p":["Bauch"],"why":"Rumpfkontrolle bei bewegten Armen und Beinen, schont den Rücken.","how":"Rückenlage, Arme nach oben, Knie 90 Grad. Gegenüberliegenden Arm und Bein langsam strecken, der untere Rücken bleibt am Boden.","err":"Rücken hebt vom Boden ab."},{"id":"pallof-press","name":"Pallof Press","en":"Pallof Press","img":"Pallof_Press","eq":"Kabelzug","type":"weight","area":"Bauch","p":["Schräge Bauchmuskeln"],"s":["Bauch"],"why":"Anti-Rotation: Der Rumpf lernt, sich gegen Drehkräfte stabil zu halten.","how":"Seitlich zum Kabelzug, Griff vor der Brust. Arme nach vorn strecken und halten, ohne dass der Oberkörper mitdreht.","err":"Hüfte und Oberkörper drehen sich zum Kabel."},{"id":"woodchopper","name":"Woodchopper am Kabel","en":"Cable Woodchopper","img":"Standing_Cable_Wood_Chop","eq":"Kabelzug","type":"weight","area":"Bauch","p":["Schräge Bauchmuskeln"],"s":["Bauch"],"why":"Kraftvolle Rotation für seitliche Bauchmuskeln.","how":"Kabel oben, diagonal von oben nach unten über den Körper ziehen, die Kraft kommt aus der Drehung.","err":"Nur mit den Armen ziehen."},{"id":"mountain-climbers","name":"Mountain Climbers","en":"Mountain Climber","img":"Mountain_Climbers","eq":"Körpergewicht","type":"bw","area":"Bauch","p":["Bauch"],"s":["Quadrizeps","Vordere Schulter"],"why":"Rumpf und Ausdauer, gut als Finisher.","how":"Liegestützposition, Knie im Wechsel schnell zur Brust ziehen.","err":"Hüfte springt hoch."},{"id":"hollow-body-hold","name":"Hollow Body Hold","en":"Hollow Body Hold","eq":"Körpergewicht","type":"bw","area":"Bauch","p":["Bauch"],"why":"Grundposition im Turnen und Calisthenics. Basis für Lever und Handstand.","how":"Rückenlage, unterer Rücken fest am Boden. Arme und Beine gestreckt anheben, sodass der Körper eine flache Banane bildet. Sekunden bei Wdh eintragen.","err":"Unterer Rücken hebt ab."},{"id":"l-sit","name":"L-Sit","en":"L-Sit","eq":"Körpergewicht","type":"bw","area":"Bauch","p":["Bauch"],"s":["Trizeps","Quadrizeps"],"why":"Statische Haltung für Bauch, Hüftbeuger und Schulterkraft.","how":"Auf Barren oder Parallettes stützen, Schultern runter. Beine gestreckt waagerecht nach vorn halten. Zum Einstieg die Knie anziehen. Sekunden eintragen.","err":"Schultern sacken zu den Ohren."},{"id":"dragon-flag","name":"Dragon Flag","en":"Dragon Flag","eq":"Körpergewicht","type":"bw","area":"Bauch","p":["Bauch"],"s":["Schräge Bauchmuskeln","Latissimus"],"why":"Fortgeschrittene Bauchübung für den ganzen Rumpf.","how":"Auf der Bank liegend hinter dem Kopf festhalten, Körper gestreckt bis auf die Schultern anheben und langsam absenken, ohne in der Hüfte zu knicken.","err":"Hüfte knickt ein. Erst mit angezogenen Knien üben."},{"id":"burpees","name":"Burpees","en":"Burpee","eq":"Körpergewicht","type":"bw","area":"Beine","p":["Quadrizeps"],"s":["Brust","Bauch","Vordere Schulter"],"why":"Ganzkörperübung für Ausdauer und Kondition.","how":"Aus dem Stand in die Hocke, Füße nach hinten in den Liegestütz, Liegestütz, Füße zurück und hochspringen.","err":"Hüfte hängt im Liegestütz durch."}];</script>
+<script>
+'use strict';
+/* ---------- Grundlagen ---------- */
+const $app = document.getElementById('app');
+const SCHEMA = 2;
+const MUSCLES = ['Brust','Vordere Schulter','Seitliche Schulter','Hintere Schulter','Trizeps','Latissimus','Oberer Rücken','Trapez','Unterer Rücken','Bizeps','Unterarme','Bauch','Schräge Bauchmuskeln','Quadrizeps','Beinbeuger','Gesäß','Adduktoren','Waden'];
+const V1_MUSCLES = ['Brust','Rücken','Schultern','Bizeps','Trizeps','Unterarme','Quadrizeps','Beinbeuger','Gesäß','Waden','Bauch','Ganzkörper'];
+const AREAS = ['Alle','Brust','Schultern','Rücken','Arme','Beine','Bauch','Körpergewicht'];
+const LIB_IMG = 'https://raw.githubusercontent.com/yuhonas/free-exercise-db/main/exercises/';
+const LIBRARY = window.LIBRARY || [];
+const LIB = Object.fromEntries(LIBRARY.map(l => [l.id, l]));
+
+const uid = () => Date.now().toString(36) + Math.random().toString(36).slice(2, 8);
+const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const norm = s => String(s || '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/ß/g, 'ss');
+const pad = n => String(n).padStart(2, '0');
+const dateKey = d => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+const today = () => dateKey(new Date());
+const num = s => { if (s == null) return null; s = String(s).trim().replace(',', '.'); if (s === '') return null; const n = parseFloat(s); return isFinite(n) ? n : null; };
+const fmt = n => n == null ? '' : String(Math.round(n * 100) / 100).replace('.', ',');
+const fmtBytes = n => n < 1048576 ? Math.max(1, Math.round(n / 1024)) + ' KB' : (n / 1048576).toFixed(1).replace('.', ',') + ' MB';
+
+function rel(key) {
+  if (!key) return '';
+  const [y, m, d] = key.split('-').map(Number);
+  const a = new Date(y, m - 1, d), t = new Date();
+  const diff = Math.round((new Date(t.getFullYear(), t.getMonth(), t.getDate()) - a) / 864e5);
+  if (diff === 0) return 'heute';
+  if (diff === 1) return 'gestern';
+  if (diff > 1 && diff < 7) return `vor ${diff} Tagen`;
+  return `${pad(d)}.${pad(m)}.${String(y).slice(2)}`;
+}
+
+const ICON = {
+  chev:'<svg class="i chev" viewBox="0 0 24 24"><path d="M9 6l6 6-6 6"/></svg>',
+  back:'<svg class="i" viewBox="0 0 24 24" style="width:26px;height:26px"><path d="M15 5l-7 7 7 7"/></svg>',
+  check:'<svg class="i" viewBox="0 0 24 24"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg>',
+  x:'<svg class="i" viewBox="0 0 24 24"><path d="M7 7l10 10M17 7L7 17"/></svg>',
+  up:'<svg class="i" viewBox="0 0 24 24"><path d="M6 15l6-6 6 6"/></svg>',
+  down:'<svg class="i" viewBox="0 0 24 24"><path d="M6 9l6 6 6-6"/></svg>',
+  pen:'<svg class="i" viewBox="0 0 24 24"><path d="M4 20h4L19 9l-4-4L4 16v4z"/></svg>',
+  trash:'<svg class="i" viewBox="0 0 24 24"><path d="M4 7h16M9 7V4h6v3M6 7l1 13h10l1-13"/></svg>',
+  plus:'<svg class="i" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg>',
+  img:'<svg class="i" viewBox="0 0 24 24"><rect x="3" y="5" width="18" height="14" rx="2"/><circle cx="9" cy="10" r="1.6"/><path d="M21 16l-5-5-8 8"/></svg>',
+  flag:'<svg class="i" viewBox="0 0 24 24"><path d="M5 21V4M5 4h11l-2 4 2 4H5"/></svg>'
+};
+
+/* ---------- Speicher (IndexedDB, Fallback im Arbeitsspeicher) ---------- */
+const Store = {
+  db: null,
+  mem: { kv: new Map(), images: new Map() },
+  open() {
+    return new Promise(res => {
+      try {
+        const r = indexedDB.open('gym-tracker', 1);
+        r.onupgradeneeded = () => { const d = r.result; ['kv', 'images'].forEach(n => { if (!d.objectStoreNames.contains(n)) d.createObjectStore(n); }); };
+        r.onsuccess = () => { this.db = r.result; res(); };
+        r.onerror = () => res();
+        r.onblocked = () => res();
+      } catch (e) { res(); }
+    });
+  },
+  req(store, mode, fn) {
+    return new Promise((res, rej) => {
+      const t = this.db.transaction(store, mode);
+      const r = fn(t.objectStore(store));
+      t.oncomplete = () => res(r ? r.result : undefined);
+      t.onerror = () => rej(t.error);
+      t.onabort = () => rej(t.error);
+    });
+  },
+  get(s, k) { return this.db ? this.req(s, 'readonly', o => o.get(k)) : Promise.resolve(this.mem[s].get(k)); },
+  put(s, k, v) { if (!this.db) { this.mem[s].set(k, v); return Promise.resolve(); } return this.req(s, 'readwrite', o => o.put(v, k)); },
+  del(s, k) { if (!this.db) { this.mem[s].delete(k); return Promise.resolve(); } return this.req(s, 'readwrite', o => o.delete(k)); },
+  keys(s) { return this.db ? this.req(s, 'readonly', o => o.getAllKeys()) : Promise.resolve([...this.mem[s].keys()]); },
+  clear(s) { if (!this.db) { this.mem[s].clear(); return Promise.resolve(); } return this.req(s, 'readwrite', o => o.clear()); }
+};
+
+let S;
+let saveTimer = null;
+function emptyState() { return { version: SCHEMA, plans: [], days: {}, exercises: {}, muscles: [...MUSCLES], sessions: [], lastBackup: null }; }
+function migrate(s) {
+  if (!s || typeof s !== 'object') return emptyState();
+  const from = s.version || 1;
+  s = Object.assign(emptyState(), s);
+  if (!Array.isArray(s.plans)) s.plans = [];
+  if (!Array.isArray(s.sessions)) s.sessions = [];
+  if (!Array.isArray(s.muscles)) s.muscles = [];
+  for (const ex of Object.values(s.exercises)) {
+    if (!Array.isArray(ex.prim)) ex.prim = ex.muscle ? [ex.muscle] : [];
+    if (!Array.isArray(ex.sec)) ex.sec = [];
+    delete ex.muscle;
+    if (!('lib' in ex)) ex.lib = null;
+    if (!ex.type) ex.type = 'weight';
+    if (!('desc' in ex)) ex.desc = '';
+    if (!('note' in ex)) ex.note = '';
+    if (!('goal' in ex)) ex.goal = null;
+  }
+  for (const d of Object.values(s.days)) { if (!Array.isArray(d.exercises)) d.exercises = []; if (!('note' in d)) d.note = ''; }
+  // Muskelliste: neue Standardgruppen, alte nur behalten, wenn sie benutzt werden oder selbst angelegt wurden
+  const used = new Set(Object.values(s.exercises).flatMap(e => [...e.prim, ...e.sec]));
+  const extra = s.muscles.filter(m => !MUSCLES.includes(m) && (from >= 2 || !V1_MUSCLES.includes(m) || used.has(m)));
+  used.forEach(m => { if (!MUSCLES.includes(m) && !extra.includes(m)) extra.push(m); });
+  s.muscles = [...MUSCLES, ...extra];
+  s.version = SCHEMA;
+  return s;
+}
+function save() { clearTimeout(saveTimer); saveTimer = setTimeout(flush, 250); }
+function flush() {
+  clearTimeout(saveTimer); saveTimer = null;
+  return Store.put('kv', 'state', S).catch(() => toast('Speichern hat nicht geklappt'));
+}
+document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'hidden') flush(); });
+window.addEventListener('pagehide', flush);
+
+/* ---------- Bilder ---------- */
+const imgCache = new Map();
+async function getImg(id) {
+  if (!id) return null;
+  if (imgCache.has(id)) return imgCache.get(id);
+  const v = await Store.get('images', id).catch(() => null);
+  if (v) imgCache.set(id, v);
+  return v || null;
+}
+async function putImg(data) { const id = 'img_' + uid(); imgCache.set(id, data); await Store.put('images', id, data); return id; }
+function delImg(id) { imgCache.delete(id); return Store.del('images', id).catch(() => {}); }
+function hydrateImages(root) {
+  root.querySelectorAll('img[data-img]').forEach(async el => {
+    const id = el.dataset.img;
+    const src = await getImg(id);
+    if (src && el.dataset.img === id) { el.onload = () => el.classList.add('loaded'); el.src = src; }
+  });
+}
+function readAsDataURL(file) { return new Promise((res, rej) => { const r = new FileReader(); r.onload = () => res(r.result); r.onerror = () => rej(r.error); r.readAsDataURL(file); }); }
+async function processImage(file) {
+  if (file.type === 'image/gif' && file.size < 4 * 1024 * 1024) return readAsDataURL(file);
+  const url = await readAsDataURL(file);
+  const img = await new Promise((res, rej) => { const i = new Image(); i.onload = () => res(i); i.onerror = rej; i.src = url; });
+  const max = 1200;
+  const sc = Math.min(1, max / Math.max(img.naturalWidth, img.naturalHeight));
+  const w = Math.round(img.naturalWidth * sc), h = Math.round(img.naturalHeight * sc);
+  const c = document.createElement('canvas'); c.width = w; c.height = h;
+  const ctx = c.getContext('2d'); ctx.fillStyle = '#000'; ctx.fillRect(0, 0, w, h); ctx.drawImage(img, 0, 0, w, h);
+  return c.toDataURL('image/jpeg', 0.82);
+}
+async function gcImages() {
+  try {
+    const used = new Set(Object.values(S.exercises).map(e => e.image).filter(Boolean));
+    for (const k of await Store.keys('images')) if (!used.has(k)) await delImg(k);
+  } catch (e) {}
+}
+const netImg = (path, cls = '', onerr = 'this.remove()') => `<img class="net ${cls}" src="${LIB_IMG}${esc(path)}" loading="lazy" alt="" onload="this.classList.add('loaded')" onerror="${onerr}">`;
+
+/* ---------- Trainingsdaten ---------- */
+const findPlan = id => S.plans.find(p => p.id === id);
+const doneSets = sets => (sets || []).filter(x => x.done);
+const libOf = ex => ex && ex.lib ? LIB[ex.lib] : null;
+const mineFor = libId => Object.values(S.exercises).find(e => e.lib === libId);
+const mainMuscle = ex => (ex.prim && ex.prim[0]) || '';
+const sortDesc = (a, b) => a.date < b.date ? 1 : a.date > b.date ? -1 : (b.start || 0) - (a.start || 0);
+function todaySession(dayId, create) {
+  const t = today();
+  let s = S.sessions.find(x => x.dayId === dayId && x.date === t);
+  if (!s && create) { s = { id: uid(), dayId, date: t, start: Date.now(), entries: {} }; S.sessions.push(s); }
+  return s || null;
+}
+function exHistory(exId, limit, includeToday = false) {
+  const t = today(), out = [];
+  for (const s of [...S.sessions].sort(sortDesc)) {
+    if (out.length >= limit) break;
+    if (!includeToday && s.date === t) continue;
+    const sets = doneSets(s.entries[exId]);
+    if (sets.length) out.push({ date: s.date, sets });
+  }
+  return out;
+}
+const lastPerformance = exId => exHistory(exId, 1)[0] || null;
+function templateRows(exId) {
+  const lp = lastPerformance(exId);
+  if (lp) return lp.sets.map(s => ({ w: s.w ?? null, r: s.r ?? null, done: false, drops: (s.drops || []).map(d => ({ w: d.w ?? null, r: d.r ?? null })) }));
+  return [{ w: null, r: null, done: false, drops: [] }];
+}
+function currentRows(exId, dayId) { const s = todaySession(dayId, false); return (s && s.entries[exId]) || templateRows(exId); }
+function ensureEntry(exId, dayId) { const s = todaySession(dayId, true); if (!s.entries[exId]) s.entries[exId] = templateRows(exId); return s.entries[exId]; }
+function lastDayDate(dayId) {
+  let best = null;
+  for (const s of S.sessions) if (s.dayId === dayId && Object.values(s.entries).some(x => doneSets(x).length) && (!best || s.date > best)) best = s.date;
+  return best;
+}
+function lastPlanDate(p) { let b = null; p.days.forEach(d => { const x = lastDayDate(d); if (x && (!b || x > b)) b = x; }); return b; }
+function wLabel(w, type) { return type === 'bw' ? '+' + fmt(w || 0) : (w == null ? '–' : fmt(w)); }
+function setStr(s, type) { return `${wLabel(s.w, type)} × ${s.r ?? '–'}`; }
+function setHtml(s, type) { return esc(setStr(s, type)) + (s.drops || []).map(d => ` <span class="dr">↘ ${esc(setStr(d, type))}</span>`).join(''); }
+function topSet(sets) { return sets.reduce((a, b) => ((b.w ?? -1) > (a.w ?? -1) || ((b.w ?? -1) === (a.w ?? -1) && (b.r ?? 0) > (a.r ?? 0))) ? b : a); }
+function dropWeight(b) {
+  if (b == null) return null;
+  if (b <= 0) return 0;
+  let w = Math.round(b * 0.8 / 2.5) * 2.5;
+  if (w >= b) w = Math.max(0, b - 2.5);
+  return w;
+}
+function moveIn(arr, i, dir) { const j = i + dir; if (j < 0 || j >= arr.length) return; [arr[i], arr[j]] = [arr[j], arr[i]]; }
+function newPlan(name, dayNames) {
+  const p = { id: uid(), name, days: [] };
+  dayNames.forEach(n => { const d = { id: uid(), name: n, exercises: [], note: '' }; S.days[d.id] = d; p.days.push(d.id); });
+  S.plans.push(p);
+  return p;
+}
+function backupHint() { return S.lastBackup ? 'Letztes Backup ' + rel(dateKey(new Date(S.lastBackup))) : 'Noch kein Backup'; }
+function backupDue() {
+  const has = S.sessions.some(s => Object.values(s.entries).some(x => doneSets(x).length));
+  return has && (!S.lastBackup || Date.now() - S.lastBackup > 14 * 864e5);
+}
+
+/* ---------- Ziele ---------- */
+function goalText(g, type) {
+  const w = g.weight != null ? `${wLabel(g.weight, type)} kg` : '';
+  if (g.reps == null) return w;
+  return `${g.sets ? g.sets + ' × ' : ''}${g.reps} Wdh${w ? ' bei ' + w : ''}`;
+}
+function goalEval(ex) {
+  const g = ex.goal; if (!g) return null;
+  const b = exHistory(ex.id, 1, true)[0] || null;
+  if (!b) return { g, basis: null, pct: 0, ready: false };
+  const val = s => s.w || 0;
+  if (g.reps == null) {
+    const best = Math.max(...b.sets.map(val));
+    return { g, basis: b, pct: g.weight ? Math.min(1, best / g.weight) : 0, ready: best >= g.weight, sub: `Schwerster Satz ${rel(b.date)}: ${wLabel(best, ex.type)} kg` };
+  }
+  const qual = b.sets.filter(s => g.weight == null || val(s) >= g.weight - 1e-9);
+  const n = g.sets || Math.max(1, b.sets.length);
+  const reps = qual.map(s => s.r || 0).sort((a, c) => c - a).slice(0, n);
+  while (reps.length < n) reps.push(0);
+  const pct = reps.reduce((a, r) => a + Math.min(r, g.reps), 0) / (n * g.reps);
+  const ready = reps.filter(r => r >= g.reps).length >= n;
+  const at = g.weight != null ? ` bei ${wLabel(g.weight, ex.type)} kg` : '';
+  return { g, basis: b, pct, ready, sub: `${rel(b.date).replace(/^./, c => c.toUpperCase())}: ${reps.join(', ')} von ${g.reps} Wdh${at}` };
+}
+
+/* ---------- Auswertung ---------- */
+function periodStart(kind) {
+  const t = new Date(); t.setHours(0, 0, 0, 0);
+  if (kind === 'week') { t.setDate(t.getDate() - ((t.getDay() + 6) % 7)); return dateKey(t); }
+  if (kind === 'month') { t.setDate(t.getDate() - 27); return dateKey(t); }
+  return '0000-00-00';
+}
+function muscleStats(kind, half) {
+  const from = periodStart(kind), m = {}, trainings = new Set();
+  let sets = 0;
+  for (const s of S.sessions) {
+    if (s.date < from) continue;
+    for (const [exId, list] of Object.entries(s.entries)) {
+      const n = doneSets(list).length; if (!n) continue;
+      sets += n; trainings.add(s.id);
+      const ex = S.exercises[exId]; if (!ex) continue;
+      ex.prim.forEach(g => { m[g] = (m[g] || 0) + n; });
+      if (half) ex.sec.forEach(g => { if (!ex.prim.includes(g)) m[g] = (m[g] || 0) + n * 0.5; });
+    }
+  }
+  return { m, sets, trainings: trainings.size };
+}
+
+/* ---------- Navigation ---------- */
+const ui = { edit: null, folds: {}, draft: null, q: '', pq: '', pa: 'Alle', la: 'Alle', libTab: null, per: 'week', half: true, backup: null };
+let stack = [];
+function go(view, params = {}) {
+  const cur = stack[stack.length - 1];
+  if (cur) cur.scroll = window.scrollY;
+  ui.edit = null;
+  stack.push({ view, params, scroll: 0 });
+  render('top');
+}
+function back() { if (stack.length <= 1) return; stack.pop(); ui.edit = null; render('restore'); }
+function rerender() { render('keep'); }
+function render(mode = 'keep') {
+  const y = window.scrollY;
+  let html = null, cur;
+  for (let g = 0; g < 12; g++) {
+    cur = stack[stack.length - 1];
+    try { html = Views[cur.view](cur.params); } catch (e) { console.error(e); html = null; }
+    if (html != null) break;
+    if (stack.length > 1) { stack.pop(); mode = 'restore'; } else { stack = [{ view: 'home', params: {}, scroll: 0 }]; }
+  }
+  $app.innerHTML = html ?? '<p class="muted">Diese Ansicht konnte nicht geladen werden.</p>';
+  hydrateImages($app);
+  window.scrollTo(0, mode === 'top' ? 0 : mode === 'restore' ? (cur.scroll || 0) : y);
+  if (cur.view === 'data') showStorage();
+}
+function bar({ back: b = 'Zurück', title = '', right = '' } = {}) {
+  return `<header class="bar">${b ? `<button class="bar-back" data-a="back" aria-label="Zurück">${ICON.back}<span>${esc(b)}</span></button>` : '<span></span>'}<div class="bar-title">${esc(title)}</div><div class="bar-right">${right}</div></header>`;
+}
+function thumb(ex) {
+  const l = libOf(ex);
+  const inner = ex.image ? `<img data-img="${esc(ex.image)}" alt="">` : (l && l.img ? netImg(l.img + '/0.jpg') : '');
+  return `<div class="thumb">${esc(mainMuscle(ex).slice(0, 2) || '?')}${inner}</div>`;
+}
+const libThumb = l => `<div class="thumb">${esc(l.p[0].slice(0, 2))}${l.img ? netImg(l.img + '/0.jpg') : ''}</div>`;
+function fold(key, label, body, dot = false) {
+  return `<details class="fold" data-fold="${esc(key)}" ${ui.folds[key] ? 'open' : ''}><summary><span class="sum-l">${esc(label)}${dot ? '<span class="done-dot"></span>' : ''}</span>${ICON.chev}</summary><div class="fold-body">${body}</div></details>`;
+}
+document.addEventListener('toggle', e => { const el = e.target; if (el && el.dataset && el.dataset.fold) ui.folds[el.dataset.fold] = el.open; }, true);
+function infoHtml(l, ownName) {
+  return `<div class="info">${ownName && ownName !== l.name ? `<p class="orig">Original: ${esc(l.name)}</p>` : ''}
+    <dl><dt>Hauptsächlich</dt><dd>${esc(l.p.join(', '))}</dd>${l.s && l.s.length ? `<dt>Unterstützend</dt><dd>${esc(l.s.join(', '))}</dd>` : ''}<dt>Ausrüstung</dt><dd>${esc(l.eq)}</dd></dl>
+    <h3>Wofür sie gut ist</h3><p>${esc(l.why)}</p>
+    <h3>Ausführung</h3><p>${esc(l.how)}</p>
+    <h3>Häufige Fehler</h3><p>${esc(l.err)}</p></div>`;
+}
+function hasAll(text, q) {
+  if (!q) return true;
+  const t = norm(text), words = t.split(/[^a-z0-9]+/);
+  // kurze Begriffe nur am Wortanfang („lat“ findet Latissimus, nicht Klatschen), längere auch mitten im Wort
+  const flat = t.replace(/[^a-z0-9]/g, '');
+  return q.split(/\s+/).filter(Boolean).every(w => w.length >= 4 ? (t.includes(w) || flat.includes(w)) : words.some(x => x.startsWith(w)));
+}
+function libMatch(l, q, area) {
+  if (area === 'Körpergewicht' ? l.type !== 'bw' : (area !== 'Alle' && l.area !== area)) return false;
+  return hasAll(`${l.name} ${l.en} ${l.p.join(' ')} ${(l.s || []).join(' ')} ${l.eq}`, q);
+}
+function exMatch(ex, q) {
+  if (!q) return true;
+  const l = libOf(ex);
+  return hasAll(`${ex.name} ${ex.prim.join(' ')} ${l ? l.name + ' ' + l.en : ''}`, q);
+}
+const chipsRow = (action, current) => AREAS.map(a => `<button class="chip ${current === a ? 'on' : ''}" data-a="${action}" data-v="${a}">${a}</button>`).join('');
+
+/* ---------- Ansichten ---------- */
+const Views = {
+  home() {
+    const dateStr = new Date().toLocaleDateString('de-DE', { weekday: 'long', day: 'numeric', month: 'long' });
+    let body;
+    if (!S.plans.length) {
+      body = `<div class="empty"><p>Leg deinen Trainingsplan an. Die Vorlage erstellt die Tage Push, Pull, Legs und Calisthenics, die Übungen wählst du aus der Bibliothek oder legst sie selbst an.</p>
+        <button class="btn btn-primary" data-a="plan-template">Plan aus Vorlage erstellen</button>
+        <button class="btn" data-a="plan-new">Leeren Plan erstellen</button></div>`;
+    } else {
+      body = `<div class="rows">${S.plans.map(p => {
+        const n = p.days.length, last = lastPlanDate(p);
+        return `<button class="row" data-a="open-plan" data-id="${p.id}"><div class="row-main"><div class="row-title">${esc(p.name)}</div><div class="row-sub">${n} ${n === 1 ? 'Tag' : 'Tage'}${last ? `, zuletzt ${rel(last)}` : ''}</div></div>${ICON.chev}</button>`;
+      }).join('')}</div><button class="btn btn-line" data-a="plan-new">${ICON.plus}Neuer Plan</button>`;
+    }
+    const wk = muscleStats('week', false).sets;
+    const n = Object.keys(S.exercises).length;
+    return `<div class="home-top"><h1 class="title">Training</h1><p class="lead">${esc(dateStr)}</p></div>${body}
+      <div class="group">Mehr</div>
+      <div class="rows">
+        <button class="row" data-a="go" data-view="stats"><div class="row-main"><div class="row-title">Auswertung</div><div class="row-sub">${wk ? `Diese Woche ${wk} ${wk === 1 ? 'Satz' : 'Sätze'}` : 'Sätze pro Muskelgruppe'}</div></div>${ICON.chev}</button>
+        <button class="row" data-a="go" data-view="library"><div class="row-main"><div class="row-title">Übungen</div><div class="row-sub">${n} eigene, ${LIBRARY.length} in der Bibliothek</div></div>${ICON.chev}</button>
+        <button class="row" data-a="go" data-view="data"><div class="row-main"><div class="row-title">Backup und Daten</div><div class="row-sub">${backupDue() ? '<span class="warn-dot"></span>' : ''}${esc(backupHint())}</div></div>${ICON.chev}</button>
+      </div>`;
+  },
+
+  plan({ id }) {
+    const p = findPlan(id); if (!p) return null;
+    const edit = ui.edit === 'plan:' + id;
+    let body;
+    if (edit) {
+      body = `<div class="rows">${p.days.map((dId, i) => {
+        const d = S.days[dId]; if (!d) return '';
+        return `<div class="erow"><div class="erow-name">${esc(d.name)}</div><div class="erow-actions">
+          <button class="icon-btn" data-a="day-move" data-plan="${id}" data-i="${i}" data-dir="-1" ${i === 0 ? 'disabled' : ''} aria-label="Nach oben">${ICON.up}</button>
+          <button class="icon-btn" data-a="day-move" data-plan="${id}" data-i="${i}" data-dir="1" ${i === p.days.length - 1 ? 'disabled' : ''} aria-label="Nach unten">${ICON.down}</button>
+          <button class="icon-btn" data-a="day-rename" data-id="${dId}" aria-label="Umbenennen">${ICON.pen}</button>
+          <button class="icon-btn danger" data-a="day-delete" data-plan="${id}" data-id="${dId}" aria-label="Löschen">${ICON.trash}</button></div></div>`;
+      }).join('')}</div>
+      <button class="btn" data-a="plan-rename" data-id="${id}">Plan umbenennen</button>
+      <button class="btn btn-danger" data-a="plan-delete" data-id="${id}">Plan löschen</button>`;
+    } else {
+      body = `<div class="rows">${p.days.map(dId => {
+        const d = S.days[dId]; if (!d) return '';
+        const last = lastDayDate(dId), n = d.exercises.length, isToday = last === today();
+        return `<button class="day ${isToday ? 'is-today' : ''}" data-a="open-day" data-id="${dId}"><span class="day-name">${esc(d.name)}</span><span class="day-meta">${last ? rel(last) : 'neu'}<br>${n} ${n === 1 ? 'Übung' : 'Übungen'}</span></button>`;
+      }).join('')}</div><button class="btn btn-line" data-a="day-add" data-plan="${id}">${ICON.plus}Tag hinzufügen</button>`;
+    }
+    return `${bar({ back: 'Training', right: `<button class="bar-btn" data-a="edit-toggle" data-key="plan:${id}">${edit ? 'Fertig' : 'Bearbeiten'}</button>` })}
+      <h1 class="title">${esc(p.name)}</h1><p class="lead">${edit ? 'Tage sortieren, umbenennen oder löschen.' : 'Was trainierst du heute?'}</p>${body}`;
+  },
+
+  day({ id }) {
+    const d = S.days[id]; if (!d) return null;
+    const plan = S.plans.find(p => p.days.includes(id));
+    const edit = ui.edit === 'day:' + id;
+    const sess = todaySession(id, false);
+    const total = sess ? Object.values(sess.entries).reduce((a, s) => a + doneSets(s).length, 0) : 0;
+    const exCount = sess ? Object.values(sess.entries).filter(s => doneSets(s).length).length : 0;
+    const last = lastDayDate(id);
+    const lead = total ? `Heute <b>${total} ${total === 1 ? 'Satz' : 'Sätze'}</b> in ${exCount} ${exCount === 1 ? 'Übung' : 'Übungen'}` : (last ? `Zuletzt trainiert ${rel(last)}` : 'Noch nicht trainiert');
+    const list = d.exercises.map((exId, i) => {
+      const ex = S.exercises[exId]; if (!ex) return '';
+      if (edit) return `<div class="erow">${thumb(ex)}<div class="erow-name">${esc(ex.name)}</div><div class="erow-actions">
+          <button class="icon-btn" data-a="ex-move" data-day="${id}" data-i="${i}" data-dir="-1" ${i === 0 ? 'disabled' : ''} aria-label="Nach oben">${ICON.up}</button>
+          <button class="icon-btn" data-a="ex-move" data-day="${id}" data-i="${i}" data-dir="1" ${i === d.exercises.length - 1 ? 'disabled' : ''} aria-label="Nach unten">${ICON.down}</button>
+          <button class="icon-btn danger" data-a="ex-remove" data-day="${id}" data-i="${i}" aria-label="Aus diesem Tag entfernen">${ICON.x}</button></div></div>`;
+      const n = sess ? doneSets(sess.entries[exId]).length : 0;
+      const lp = lastPerformance(exId);
+      const sub = n ? `<span class="done-dot"></span>Heute ${n} ${n === 1 ? 'Satz' : 'Sätze'}` : esc(mainMuscle(ex)) + (lp ? `, zuletzt ${esc(setStr(topSet(lp.sets), ex.type))}` : '');
+      return `<button class="row" data-a="open-ex" data-day="${id}" data-id="${exId}">${thumb(ex)}<div class="row-main"><div class="row-title">${esc(ex.name)}</div><div class="row-sub">${sub}</div></div>${ICON.chev}</button>`;
+    }).join('');
+    const note = edit ? '' : fold('dnote:' + id, 'Notiz zum Tag', `<textarea class="field note-field" data-field="note-day" data-id="${id}" placeholder="z. B. Schulter zwickt, heute leichter">${esc(d.note)}</textarea>`, !!(d.note || '').trim());
+    return `${bar({ back: plan ? plan.name : 'Zurück', right: d.exercises.length ? `<button class="bar-btn" data-a="edit-toggle" data-key="day:${id}">${edit ? 'Fertig' : 'Bearbeiten'}</button>` : '' })}
+      <h1 class="title">${esc(d.name)}</h1><p class="lead">${edit ? 'Reihenfolge ändern oder Übungen aus diesem Tag entfernen. In deinen Übungen bleiben sie erhalten.' : lead}</p>
+      ${note}
+      ${d.exercises.length ? `<div class="rows" style="margin-top:${edit ? 0 : 18}px">${list}</div>` : '<p class="muted">Noch keine Übungen an diesem Tag.</p>'}
+      ${edit ? '' : `<button class="btn ${d.exercises.length ? 'btn-line' : 'btn-primary'}" data-a="ex-add" data-day="${id}">${ICON.plus}Übung hinzufügen</button>`}`;
+  },
+
+  ex({ id, day }) {
+    const ex = S.exercises[id]; if (!ex) return null;
+    const d = S.days[day];
+    const l = libOf(ex);
+    const rows = currentRows(id, day);
+    const lp = lastPerformance(id);
+    const unit = ex.type === 'bw' ? '+kg' : 'kg';
+    const idx = d ? d.exercises.indexOf(id) : -1;
+    const nextId = d && idx > -1 && idx < d.exercises.length - 1 ? d.exercises[idx + 1] : null;
+    const next = nextId ? S.exercises[nextId] : null;
+    const done = rows.filter(s => s.done).length;
+    const hist = exHistory(id, 8);
+    let hero;
+    if (ex.image) hero = `<div class="hero"><img data-img="${esc(ex.image)}" alt=""></div>`;
+    else if (l && l.img) hero = `<div class="hero">${netImg(l.img + '/0.jpg', '', "this.closest('.hero').remove()")}</div>`;
+    else hero = `<button class="hero-empty" data-a="ex-edit" data-id="${id}">${ICON.img}Bild hinzufügen</button>`;
+    const tags = ex.prim.map(m => `<span class="tag">${esc(m)}</span>`).join('') + ex.sec.map(m => `<span class="tag sec">${esc(m)}</span>`).join('') + (ex.type === 'bw' ? '<span class="tag">Körpergewicht</span>' : '');
+    return `${bar({ back: d ? d.name : 'Zurück', right: `<button class="bar-btn" data-a="ex-edit" data-id="${id}">Bearbeiten</button>` })}
+      ${hero}
+      <h1 class="ex-name">${esc(ex.name)}</h1>
+      <div class="tags">${tags}</div>
+      ${goalHtml(ex)}
+      ${lp ? `<div class="last"><div class="last-label">Letztes Mal, ${rel(lp.date)}</div><div class="last-sets">${lp.sets.map(s => `<span>${setHtml(s, ex.type)}</span>`).join('')}</div></div>` : ''}
+      <div class="sets">
+        <div class="sets-head"><span>Satz</span><span>${unit}</span><span>Wdh</span><span></span><span>${rows.length ? `${done}/${rows.length}` : ''}</span></div>
+        ${rows.map((s, i) => setRow(s, i, ex)).join('')}
+      </div>
+      <button class="btn" data-a="set-add">${ICON.plus}Satz hinzufügen</button>
+      ${fold('note:' + id, 'Notiz', `<textarea class="field note-field" data-field="note-ex" data-id="${id}" placeholder="z. B. Sitzhöhe 4, enger Griff">${esc(ex.note)}</textarea>`, !!(ex.note || '').trim())}
+      ${ex.desc ? fold('desc:' + id, 'Beschreibung', `<div class="fold-text">${esc(ex.desc)}</div>`) : ''}
+      ${l ? fold('info:' + id, 'Infos zur Übung', infoHtml(l, ex.name)) : ''}
+      ${hist.length ? fold('hist:' + id, 'Verlauf', hist.map(h => `<div class="hist"><div>${rel(h.date)}</div><div class="hist-sets">${h.sets.map(s => setHtml(s, ex.type)).join('<br>')}</div></div>`).join('')) : ''}
+      ${next ? `<button class="next" data-a="ex-next" data-id="${nextId}"><span><small>Nächste Übung</small><strong>${esc(next.name)}</strong></span>${ICON.chev.replace('i chev', 'i')}</button>` : ''}`;
+  },
+
+  edit() {
+    const d = ui.draft; if (!d) return null;
+    const isNew = !d.id || !S.exercises[d.id];
+    const l = d.lib ? LIB[d.lib] : null;
+    const preview = d.image ? `<img data-img="${esc(d.image)}" alt="">` : (l && l.img ? netImg(l.img + '/0.jpg') : '');
+    return `${bar({ back: 'Abbrechen', title: isNew ? 'Neue Übung' : 'Übung bearbeiten', right: `<button class="bar-btn" data-a="edit-save">Sichern</button>` })}
+      <button class="img-pick ${preview ? 'has' : ''}" data-a="pick-img">${preview || `${ICON.img}<span>Bild hinzufügen</span><small>Optional, gern ein Meme</small>`}</button>
+      ${d.image ? `<div class="btn-pair"><button class="btn" data-a="pick-img">Bild ändern</button><button class="btn btn-danger" data-a="img-remove">Bild entfernen</button></div>`
+        : (l && l.img ? '<button class="btn" data-a="pick-img">Eigenes Bild wählen</button>' : '')}
+      <label class="label" for="f-name">Name</label>
+      <input class="field" id="f-name" data-field="name" value="${esc(d.name)}" placeholder="z. B. Bankdrücken" autocomplete="off">
+      ${l ? `<p class="muted" style="margin-top:8px">Vorlage aus der Bibliothek: ${esc(l.name)}. <button style="font-weight:600;color:var(--chalk)" data-a="lib-open-detail" data-id="${l.id}">Infos ansehen</button></p>` : ''}
+      <span class="label">Hauptmuskel</span>
+      <div class="chips">${S.muscles.map(m => `<button class="chip ${d.prim.includes(m) ? 'on' : ''}" data-a="prim-toggle" data-v="${esc(m)}">${esc(m)}</button>`).join('')}<button class="chip chip-add" data-a="muscle-new">+ Eigene</button></div>
+      <span class="label">Unterstützende Muskeln <span class="opt">optional</span></span>
+      <div class="chips">${S.muscles.filter(m => !d.prim.includes(m)).map(m => `<button class="chip ${d.sec.includes(m) ? 'on' : ''}" data-a="sec-toggle" data-v="${esc(m)}">${esc(m)}</button>`).join('')}</div>
+      <span class="label">Belastung</span>
+      <div class="seg"><button class="${d.type === 'weight' ? 'on' : ''}" data-a="type-pick" data-v="weight">Gewicht</button><button class="${d.type === 'bw' ? 'on' : ''}" data-a="type-pick" data-v="bw">Körpergewicht + Zusatzgewicht</button></div>
+      <label class="label" for="f-desc">Beschreibung <span class="opt">optional</span></label>
+      <textarea class="field" id="f-desc" data-field="desc" rows="4" placeholder="Ausführung, Einstellungen, worauf du achten willst">${esc(d.desc)}</textarea>
+      <button class="btn btn-primary" style="margin-top:26px" data-a="edit-save">${isNew ? 'Übung erstellen' : 'Änderungen sichern'}</button>
+      ${isNew ? '' : '<button class="btn btn-danger" data-a="edit-delete">Übung löschen</button>'}`;
+  },
+
+  library() {
+    const n = Object.keys(S.exercises).length;
+    const tab = ui.libTab || (n ? 'mine' : 'lib');
+    return `${bar({ back: 'Training', right: `<button class="bar-btn" data-a="lib-new" aria-label="Eigene Übung erstellen">${ICON.plus}</button>` })}
+      <h1 class="title">Übungen</h1>
+      <div class="seg tabs"><button class="${tab === 'mine' ? 'on' : ''}" data-a="lib-tab" data-v="mine">Meine (${n})</button><button class="${tab === 'lib' ? 'on' : ''}" data-a="lib-tab" data-v="lib">Bibliothek (${LIBRARY.length})</button></div>
+      <input class="field" data-field="q" value="${esc(ui.q)}" placeholder="${tab === 'lib' ? 'Übung, Muskel oder Gerät suchen' : 'Deine Übungen durchsuchen'}" autocomplete="off">
+      ${tab === 'lib' ? `<div class="chips-scroll">${chipsRow('lib-area', ui.la)}</div>` : ''}
+      <div id="lib-list">${tab === 'lib' ? libBrowse() : libList()}</div>
+      <button class="btn btn-line" data-a="lib-new">${ICON.plus}Eigene Übung erstellen</button>`;
+  },
+
+  libdetail({ id, day }) {
+    const l = LIB[id]; if (!l) return null;
+    const mine = mineFor(id);
+    const d = day && S.days[day];
+    const imgs = l.img ? `<div class="lib-imgs"><figure>${netImg(l.img + '/0.jpg')}<figcaption>Start</figcaption></figure><figure>${netImg(l.img + '/1.jpg')}<figcaption>Ende</figcaption></figure></div>` : '';
+    return `${bar({ back: d ? d.name : 'Übungen' })}
+      ${imgs}
+      <h1 class="ex-name">${esc(l.name)}</h1>
+      <p class="sub-en">${esc(l.en)}</p>
+      ${infoHtml(l)}
+      ${mine ? `<p class="mine-note"><span class="done-dot"></span>In deinen Übungen als „${esc(mine.name)}“</p>` : ''}
+      ${d ? `<button class="btn btn-primary" style="margin-top:22px" data-a="lib-add-day" data-id="${id}" data-day="${day}">${ICON.plus}Zu ${esc(d.name)} hinzufügen</button>`
+          : `<button class="btn btn-primary" style="margin-top:22px" data-a="lib-add" data-id="${id}">${ICON.plus}Zu einem Tag hinzufügen</button>`}
+      ${mine ? `<button class="btn" data-a="lib-open" data-id="${mine.id}">Meine Version bearbeiten</button>` : ''}`;
+  },
+
+  stats() {
+    const per = ui.per, r = muscleStats(per, ui.half);
+    const entries = Object.entries(r.m).sort((a, b) => b[1] - a[1]);
+    const max = Math.max(per === 'week' ? 24 : 1, ...entries.map(e => e[1]));
+    const ticks = per === 'week' ? [10, 20].map(t => `<span class="tick" style="left:${t / max * 100}%"></span>`).join('') : '';
+    const zero = MUSCLES.filter(m => !r.m[m]);
+    const label = { week: 'diese Woche', month: 'in den letzten 4 Wochen', all: 'insgesamt' }[per];
+    return `${bar({ back: 'Training' })}
+      <h1 class="title">Auswertung</h1><p class="lead">Abgehakte Arbeitssätze pro Muskelgruppe. Drops zählen nicht extra.</p>
+      <div class="seg seg3"><button class="${per === 'week' ? 'on' : ''}" data-a="per" data-v="week">Woche</button><button class="${per === 'month' ? 'on' : ''}" data-a="per" data-v="month">4 Wochen</button><button class="${per === 'all' ? 'on' : ''}" data-a="per" data-v="all">Gesamt</button></div>
+      <div class="stats stats2"><div><b>${r.sets}</b><span>Sätze ${label}</span></div><div><b>${r.trainings}</b><span>Trainings</span></div></div>
+      <button class="switch-row" data-a="half-toggle" role="switch" aria-checked="${ui.half}"><span>Unterstützende Muskeln als halben Satz zählen</span><span class="switch ${ui.half ? 'on' : ''}"></span></button>
+      ${entries.length ? entries.map(([m, v]) => `<div class="bar-row"><div class="bar-head"><span>${esc(m)}</span><b>${fmt(v)}</b></div><div class="track">${ticks}<div class="fill" style="width:${Math.min(100, v / max * 100)}%"></div></div></div>`).join('')
+        : `<p class="muted">${label === 'insgesamt' ? 'Noch' : label.replace(/^./, c => c.toUpperCase()) + ' noch'} keine Sätze abgehakt.</p>`}
+      ${per === 'week' && entries.length ? '<p class="hint">Grobe Orientierung für Muskelaufbau: etwa 10 bis 20 Sätze pro Muskel und Woche. Die Lücken im Balken markieren 10 und 20.</p>' : ''}
+      ${entries.length && zero.length ? `<p class="hint">Nicht trainiert: ${esc(zero.join(', '))}</p>` : ''}`;
+  },
+
+  data() {
+    const trainings = S.sessions.filter(s => Object.values(s.entries).some(x => doneSets(x).length)).length;
+    return `${bar({ back: 'Training' })}
+      <h1 class="title">Backup und Daten</h1>
+      <p class="lead">Alles liegt nur auf diesem iPhone, in dieser App.</p>
+      <div class="note"><b>${esc(backupHint())}</b>Sichere regelmäßig ein Backup in iCloud Drive. Löschst du die App vom Home-Bildschirm oder leert iOS den Speicher, sind die Daten sonst weg.</div>
+      <div class="stats"><div><b>${Object.keys(S.exercises).length}</b><span>Übungen</span></div><div><b>${trainings}</b><span>Trainings</span></div><div><b id="storage">–</b><span>Speicher</span></div></div>
+      <button class="btn btn-primary" data-a="backup-make">Backup erstellen</button>
+      <button class="btn" data-a="import">Backup wiederherstellen</button>
+      <button class="btn btn-danger" style="margin-top:36px" data-a="wipe">Alle Daten löschen</button>
+      <p class="hint" style="margin-top:28px">Bilder und Grundinfos der Bibliothek stammen aus der freien Übungsdatenbank free-exercise-db. Die Texte wurden für diese App auf Deutsch geschrieben.</p>`;
+  }
+};
+
+function goalHtml(ex) {
+  if (!ex.goal) return `<button class="goal-add" data-a="goal-open">${ICON.flag}Ziel setzen</button>`;
+  const e = goalEval(ex), g = ex.goal;
+  let action = '';
+  if (e.ready) {
+    if (g.weight != null && g.step) action = `<button class="btn btn-primary" data-a="goal-step">Nächstes Ziel: ${esc(wLabel(Math.round((g.weight + g.step) * 100) / 100, ex.type))} kg</button>`;
+    else action = '<div class="goal-sub">Ziel erreicht. Setz dir ein neues.</div>';
+  }
+  return `<div class="goal ${e.ready ? 'ready' : ''}">
+    <div class="goal-top"><span>${e.ready ? 'Ziel erreicht' : 'Ziel'}</span><button class="goal-edit" data-a="goal-open">Ändern</button></div>
+    <div class="goal-val">${esc(goalText(g, ex.type))}</div>
+    <div class="track"><div class="fill" style="width:${Math.round(e.pct * 100)}%"></div></div>
+    <div class="goal-sub">${e.basis ? esc(e.sub) : 'Noch kein Training mit dieser Übung.'}</div>
+    ${action}</div>`;
+}
+
+function setRow(s, i, ex) {
+  const bw = ex.type === 'bw';
+  const drops = (s.drops || []).map((d, j) => `<div class="drop-row"><span class="drop-mark">↳</span>
+      <input class="inp" inputmode="decimal" enterkeyhint="done" data-in="dw" data-i="${i}" data-j="${j}" value="${fmt(d.w)}" placeholder="${bw ? '0' : 'kg'}" aria-label="Drop ${j + 1} Gewicht">
+      <input class="inp" inputmode="numeric" enterkeyhint="done" data-in="dr" data-i="${i}" data-j="${j}" value="${d.r ?? ''}" placeholder="Wdh" aria-label="Drop ${j + 1} Wiederholungen">
+      <button class="icon-btn" data-a="drop-del" data-i="${i}" data-j="${j}" aria-label="Drop entfernen">${ICON.x}</button><span></span></div>`).join('');
+  return `<div class="set ${s.done ? 'done' : ''}"><div class="set-row">
+      <button class="set-no" data-a="set-menu" data-i="${i}" aria-label="Satz ${i + 1} Optionen">${i + 1}</button>
+      <input class="inp" inputmode="decimal" enterkeyhint="done" data-in="w" data-i="${i}" value="${fmt(s.w)}" placeholder="${bw ? '0' : '–'}" aria-label="Satz ${i + 1} ${bw ? 'Zusatzgewicht' : 'Gewicht'}">
+      <input class="inp" inputmode="numeric" enterkeyhint="done" data-in="r" data-i="${i}" value="${s.r ?? ''}" placeholder="–" aria-label="Satz ${i + 1} Wiederholungen">
+      <button class="drop-btn" data-a="drop-add" data-i="${i}">Drop</button>
+      <button class="check" data-a="set-check" data-i="${i}" aria-label="Satz ${i + 1} erledigt">${ICON.check}</button>
+    </div>${drops}</div>`;
+}
+
+function libList() {
+  const q = norm(ui.q.trim());
+  const all = Object.values(S.exercises).filter(x => exMatch(x, q));
+  if (!Object.keys(S.exercises).length) return '<p class="muted">Noch keine eigenen Übungen. Übernimm welche aus der Bibliothek oder leg selbst eine an.</p>';
+  if (!all.length) return '<p class="muted">Keine Übung passt zu deiner Suche.</p>';
+  const order = [...S.muscles];
+  all.forEach(x => { if (!order.includes(mainMuscle(x))) order.push(mainMuscle(x)); });
+  return order.map(m => {
+    const items = all.filter(x => mainMuscle(x) === m).sort((a, b) => a.name.localeCompare(b.name, 'de'));
+    if (!items.length) return '';
+    return `<div class="group">${esc(m || 'Ohne Muskelgruppe')}</div><div class="rows">${items.map(x => {
+      const days = Object.values(S.days).filter(d => d.exercises.includes(x.id)).map(d => d.name);
+      return `<button class="row" data-a="lib-open" data-id="${x.id}">${thumb(x)}<div class="row-main"><div class="row-title">${esc(x.name)}</div><div class="row-sub">${days.length ? esc(days.join(', ')) : 'Keinem Tag zugeordnet'}</div></div>${ICON.chev}</button>`;
+    }).join('')}</div>`;
+  }).join('');
+}
+
+function libBrowse() {
+  const q = norm(ui.q.trim());
+  const list = LIBRARY.filter(l => libMatch(l, q, ui.la));
+  if (!list.length) return '<p class="muted">Keine Übung gefunden. Probier einen anderen Begriff oder leg sie selbst an.</p>';
+  const row = l => {
+    const mine = mineFor(l.id);
+    return `<button class="row" data-a="lib-open-detail" data-id="${l.id}">${libThumb(l)}<div class="row-main"><div class="row-title">${esc(l.name)}</div><div class="row-sub">${mine ? '<span class="done-dot"></span>' : ''}${esc(l.p.join(', '))}, ${esc(l.eq)}</div></div>${ICON.chev}</button>`;
+  };
+  if (ui.la !== 'Alle' || q) return `<div class="rows" style="margin-top:8px">${list.map(row).join('')}</div>`;
+  return AREAS.slice(1, -1).map(a => {
+    const items = list.filter(l => l.area === a); if (!items.length) return '';
+    return `<div class="group">${a}</div><div class="rows">${items.map(row).join('')}</div>`;
+  }).join('');
+}
+
+function pickList(dayId) {
+  const d = S.days[dayId]; if (!d) return '';
+  const q = norm(ui.pq.trim());
+  const mine = Object.values(S.exercises).filter(x => !d.exercises.includes(x.id) && exMatch(x, q) && (ui.pa === 'Alle' || (ui.pa === 'Körpergewicht' ? x.type === 'bw' : (libOf(x) ? libOf(x).area === ui.pa : false))))
+    .sort((a, b) => a.name.localeCompare(b.name, 'de'));
+  const lib = LIBRARY.filter(l => !mineFor(l.id) && libMatch(l, q, ui.pa));
+  let html = '';
+  if (mine.length) html += `<div class="group">Deine Übungen</div><div class="rows">${mine.map(x => `<button class="row" data-a="pick-ex" data-day="${dayId}" data-id="${x.id}">${thumb(x)}<div class="row-main"><div class="row-title">${esc(x.name)}</div><div class="row-sub">${esc(mainMuscle(x))}</div></div>${ICON.plus}</button>`).join('')}</div>`;
+  if (lib.length) html += `<div class="group">Bibliothek</div>${lib.map(l => `<div class="lib-row"><button class="row" data-a="pick-lib" data-day="${dayId}" data-id="${l.id}">${libThumb(l)}<div class="row-main"><div class="row-title">${esc(l.name)}</div><div class="row-sub">${esc(l.p.join(', '))}, ${esc(l.eq)}</div></div></button><button class="info-btn" data-a="pick-info" data-day="${dayId}" data-id="${l.id}" aria-label="Infos zu ${esc(l.name)}">i</button></div>`).join('')}`;
+  return html || '<p class="muted">Nichts gefunden. Leg die Übung oben selbst an.</p>';
+}
+
+/* ---------- Sheets und Toast ---------- */
+let sheetEl = null;
+function openSheet(inner, onClose) {
+  closeSheet();
+  const w = document.createElement('div');
+  w.className = 'sheet-wrap';
+  w.innerHTML = `<div class="sheet-bg" data-a="sheet-close"></div><div class="sheet" role="dialog" aria-modal="true">${inner}</div>`;
+  w._onClose = onClose;
+  document.body.appendChild(w);
+  sheetEl = w;
+  fitSheet();
+  document.body.classList.add('noscroll');
+  requestAnimationFrame(() => requestAnimationFrame(() => w.classList.add('open')));
+  return w;
+}
+function closeSheet(val) {
+  if (!sheetEl) return;
+  const w = sheetEl; sheetEl = null;
+  w.classList.remove('open');
+  setTimeout(() => w.remove(), 230);
+  document.body.classList.remove('noscroll');
+  if (w._onClose) w._onClose(val);
+}
+function fitSheet() {
+  if (!sheetEl || !window.visualViewport) return;
+  sheetEl.style.height = visualViewport.height + 'px';
+  sheetEl.style.top = visualViewport.offsetTop + 'px';
+}
+if (window.visualViewport) { visualViewport.addEventListener('resize', fitSheet); visualViewport.addEventListener('scroll', fitSheet); }
+
+function ask(title, value = '', placeholder = '', ok = 'Sichern', text = '') {
+  return new Promise(res => {
+    const w = openSheet(`<div class="sheet-title">${esc(title)}</div>${text ? `<p class="sheet-text">${esc(text)}</p>` : ''}
+      <input class="field" id="sheet-input" value="${esc(value)}" placeholder="${esc(placeholder)}" autocomplete="off" enterkeyhint="done">
+      <div class="btn-pair" style="margin-top:4px"><button class="btn" data-a="sheet-close">Abbrechen</button><button class="btn btn-primary" data-a="sheet-ok">${esc(ok)}</button></div>`,
+      v => res(typeof v === 'string' && v ? v : null));
+    const inp = w.querySelector('#sheet-input');
+    inp.focus();
+    if (value) inp.select();
+    inp.addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); closeSheet(inp.value.trim()); } });
+  });
+}
+function confirmSheet(title, text, ok) {
+  return new Promise(res => openSheet(`<div class="sheet-title">${esc(title)}</div>${text ? `<p class="sheet-text">${esc(text)}</p>` : ''}
+    <button class="btn btn-danger" data-a="sheet-opt" data-v="yes">${esc(ok)}</button><button class="btn" data-a="sheet-close">Abbrechen</button>`, v => res(v === 'yes')));
+}
+function actionSheet(title, opts) {
+  return new Promise(res => openSheet(`<div class="sheet-title">${esc(title)}</div>${opts.map(o => `<button class="btn ${o.danger ? 'btn-danger' : ''}" data-a="sheet-opt" data-v="${esc(o.v)}">${esc(o.label)}</button>`).join('')}
+    <button class="btn" data-a="sheet-close">Abbrechen</button>`, v => res(v || null)));
+}
+function openPicker(dayId) {
+  ui.pq = ''; ui.pa = 'Alle';
+  const w = openSheet(`<div class="sheet-title">Übung hinzufügen</div>
+    <button class="btn" data-a="pick-new" data-day="${dayId}">${ICON.plus}Eigene Übung erstellen</button>
+    <input class="field" data-field="pq" placeholder="Übung, Muskel oder Gerät suchen" autocomplete="off">
+    <div class="chips-scroll" id="pick-chips">${chipsRow('pick-area', ui.pa)}</div>
+    <div id="pick-list">${pickList(dayId)}</div>`);
+  w.dataset.day = dayId;
+  hydrateImages(w);
+}
+function refreshPicker() {
+  if (!sheetEl) return;
+  const l = sheetEl.querySelector('#pick-list'), c = sheetEl.querySelector('#pick-chips');
+  if (c) c.innerHTML = chipsRow('pick-area', ui.pa);
+  if (l) { l.innerHTML = pickList(sheetEl.dataset.day); hydrateImages(l); }
+}
+function openDayChooser(libId) {
+  if (!S.plans.length) { toast('Leg zuerst einen Trainingsplan an'); return; }
+  openSheet(`<div class="sheet-title">Zu welchem Tag?</div>${S.plans.map(p => `<div class="group">${esc(p.name)}</div><div class="rows">${p.days.map(dId => {
+    const d = S.days[dId]; if (!d) return '';
+    return `<button class="row" data-a="lib-add-day" data-id="${libId}" data-day="${dId}"><div class="row-main"><div class="row-title">${esc(d.name)}</div><div class="row-sub">${d.exercises.length} ${d.exercises.length === 1 ? 'Übung' : 'Übungen'}</div></div>${ICON.plus}</button>`;
+  }).join('')}</div>`).join('')}<button class="btn" data-a="sheet-close">Abbrechen</button>`);
+}
+function openGoal(ex) {
+  const g = ex.goal || {};
+  const wl = ex.type === 'bw' ? 'Zusatzgewicht (kg)' : 'Gewicht (kg)';
+  openSheet(`<div class="sheet-title">Ziel für ${esc(ex.name)}</div>
+    <p class="sheet-text">Alles ist optional. Trag nur ein, was du verfolgen willst. Mit Steigerung schlägt die App das nächste Gewicht vor, sobald du das Ziel in allen Sätzen schaffst.</p>
+    <div class="goal-grid">
+      <label>Sätze<input class="field" id="g-sets" inputmode="numeric" value="${g.sets ?? ''}" placeholder="z. B. 3"></label>
+      <label>Wiederholungen<input class="field" id="g-reps" inputmode="numeric" value="${g.reps ?? ''}" placeholder="z. B. 12"></label>
+      <label>${wl}<input class="field" id="g-w" inputmode="decimal" value="${fmt(g.weight)}" placeholder="z. B. 20"></label>
+      <label>Steigerung (kg)<input class="field" id="g-step" inputmode="decimal" value="${fmt(g.step)}" placeholder="z. B. 2,5"></label>
+    </div>
+    <button class="btn btn-primary" data-a="goal-save">Ziel sichern</button>
+    ${ex.goal ? '<button class="btn btn-danger" data-a="goal-del">Ziel entfernen</button>' : ''}
+    <button class="btn" data-a="sheet-close">Abbrechen</button>`);
+}
+async function addLibToDay(libId, dayId) {
+  const l = LIB[libId], day = S.days[dayId];
+  if (!l || !day) return;
+  let ex = mineFor(libId);
+  if (!ex) {
+    const n = await ask('Name in deinem Plan', l.name, l.name, 'Hinzufügen', 'Lass den Namen so oder gib der Übung deinen eigenen. Die Infos aus der Bibliothek bleiben erhalten.');
+    if (!n) return;
+    ex = { id: uid(), name: n, lib: libId, prim: [...l.p], sec: [...(l.s || [])], type: l.type, desc: '', image: null, note: '', goal: null };
+    S.exercises[ex.id] = ex;
+  }
+  if (day.exercises.includes(ex.id)) { toast(`${ex.name} ist schon in ${day.name}`); return; }
+  day.exercises.push(ex.id);
+  save(); rerender();
+  toast(`${ex.name} zu ${day.name} hinzugefügt`);
+}
+let toastT;
+function toast(msg) {
+  const el = document.getElementById('toast');
+  el.textContent = msg; el.classList.add('show');
+  clearTimeout(toastT); toastT = setTimeout(() => el.classList.remove('show'), 2000);
+}
+async function showStorage() {
+  const el = document.getElementById('storage');
+  try { const e = await navigator.storage.estimate(); if (el) el.textContent = fmtBytes(e.usage || 0); } catch (e) {}
+}
+
+/* ---------- Aktionen ---------- */
+const exCtx = () => { const c = stack[stack.length - 1]; return c.view === 'ex' ? c.params : null; };
+function startDraft(id) {
+  const ex = id && S.exercises[id];
+  ui.draft = ex ? JSON.parse(JSON.stringify(ex)) : { id: null, name: '', lib: null, prim: [], sec: [], type: 'weight', desc: '', image: null, note: '', goal: null };
+}
+function addDrop(sets, i) {
+  const s = sets[i]; if (!s) return;
+  s.drops = s.drops || [];
+  const base = s.drops.length ? s.drops[s.drops.length - 1].w : s.w;
+  s.drops.push({ w: dropWeight(base), r: null });
+}
+function download(file) {
+  const url = URL.createObjectURL(file);
+  const a = document.createElement('a'); a.href = url; a.download = file.name;
+  document.body.appendChild(a); a.click(); a.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 5000);
+}
+function backupDone() { S.lastBackup = Date.now(); save(); closeSheet(); toast('Backup gesichert'); rerender(); }
+const toggleIn = (arr, v) => { const i = arr.indexOf(v); if (i > -1) arr.splice(i, 1); else arr.push(v); };
+
+const A = {
+  back: () => back(),
+  go: el => go(el.dataset.view),
+  'sheet-close': () => closeSheet(null),
+  'sheet-ok': () => { const inp = sheetEl && sheetEl.querySelector('#sheet-input'); closeSheet(inp ? inp.value.trim() : 'ok'); },
+  'sheet-opt': el => closeSheet(el.dataset.v),
+  'edit-toggle': el => { ui.edit = ui.edit === el.dataset.key ? null : el.dataset.key; rerender(); },
+
+  'plan-template': () => { const p = newPlan('Push Pull Legs + Calisthenics', ['Push', 'Pull', 'Legs', 'Calisthenics']); save(); go('plan', { id: p.id }); },
+  'plan-new': async () => { const n = await ask('Neuer Plan', '', 'z. B. Mein Split', 'Erstellen'); if (!n) return; const p = newPlan(n, []); save(); go('plan', { id: p.id }); },
+  'open-plan': el => go('plan', { id: el.dataset.id }),
+  'plan-rename': async el => { const p = findPlan(el.dataset.id); const n = await ask('Plan umbenennen', p.name); if (!n) return; p.name = n; save(); rerender(); },
+  'plan-delete': async el => {
+    const p = findPlan(el.dataset.id);
+    if (!await confirmSheet(`${p.name} löschen?`, 'Die Tage dieses Plans werden gelöscht. Deine Übungen und dein Verlauf bleiben erhalten.', 'Plan löschen')) return;
+    p.days.forEach(d => delete S.days[d]); S.plans = S.plans.filter(x => x !== p); save(); back(); toast('Plan gelöscht');
+  },
+  'day-add': async el => {
+    const p = findPlan(el.dataset.plan);
+    const n = await ask('Neuer Tag', '', 'z. B. Push', 'Hinzufügen'); if (!n) return;
+    const d = { id: uid(), name: n, exercises: [], note: '' }; S.days[d.id] = d; p.days.push(d.id); save(); rerender();
+  },
+  'day-move': el => { moveIn(findPlan(el.dataset.plan).days, +el.dataset.i, +el.dataset.dir); save(); rerender(); },
+  'day-rename': async el => { const d = S.days[el.dataset.id]; const n = await ask('Tag umbenennen', d.name); if (!n) return; d.name = n; save(); rerender(); },
+  'day-delete': async el => {
+    const d = S.days[el.dataset.id];
+    if (!await confirmSheet(`${d.name} löschen?`, 'Deine Übungen und dein Verlauf bleiben erhalten.', 'Tag löschen')) return;
+    const p = findPlan(el.dataset.plan); p.days = p.days.filter(x => x !== d.id); delete S.days[d.id]; save(); rerender(); toast('Tag gelöscht');
+  },
+  'open-day': el => go('day', { id: el.dataset.id }),
+
+  'ex-add': el => openPicker(el.dataset.day),
+  'pick-area': el => { ui.pa = el.dataset.v; refreshPicker(); },
+  'pick-ex': el => {
+    const d = S.days[el.dataset.day];
+    if (!d.exercises.includes(el.dataset.id)) d.exercises.push(el.dataset.id);
+    save(); closeSheet(); rerender(); toast('Übung hinzugefügt');
+  },
+  'pick-lib': el => addLibToDay(el.dataset.id, el.dataset.day),
+  'pick-info': el => { const { id, day } = el.dataset; closeSheet(); go('libdetail', { id, day }); },
+  'pick-new': el => { const day = el.dataset.day; closeSheet(); startDraft(null); go('edit', { day }); },
+  'ex-move': el => { moveIn(S.days[el.dataset.day].exercises, +el.dataset.i, +el.dataset.dir); save(); rerender(); },
+  'ex-remove': el => { S.days[el.dataset.day].exercises.splice(+el.dataset.i, 1); save(); rerender(); toast('Aus diesem Tag entfernt'); },
+  'open-ex': el => go('ex', { id: el.dataset.id, day: el.dataset.day }),
+  'ex-next': el => { const c = stack[stack.length - 1]; c.params = { ...c.params, id: el.dataset.id }; render('top'); },
+  'ex-edit': el => { startDraft(el.dataset.id); go('edit', { id: el.dataset.id }); },
+
+  'lib-tab': el => { ui.libTab = el.dataset.v; ui.q = ''; rerender(); },
+  'lib-area': el => { ui.la = el.dataset.v; rerender(); },
+  'lib-new': () => { startDraft(null); go('edit', {}); },
+  'lib-open': el => { startDraft(el.dataset.id); go('edit', { id: el.dataset.id }); },
+  'lib-open-detail': el => go('libdetail', { id: el.dataset.id }),
+  'lib-add': el => openDayChooser(el.dataset.id),
+  'lib-add-day': el => { const { id, day } = el.dataset; closeSheet(); addLibToDay(id, day); },
+
+  'goal-open': () => { const c = exCtx(); if (c) openGoal(S.exercises[c.id]); },
+  'goal-save': () => {
+    const c = exCtx(); if (!c || !sheetEl) return;
+    const ex = S.exercises[c.id];
+    const v = id => num(sheetEl.querySelector(id).value);
+    const int = x => x == null ? null : Math.max(1, Math.round(x));
+    const g = { sets: int(v('#g-sets')), reps: int(v('#g-reps')), weight: v('#g-w'), step: v('#g-step') };
+    if (g.reps == null && g.weight == null) { toast('Trag mindestens Wiederholungen oder ein Gewicht ein'); return; }
+    if (g.step != null && g.step <= 0) g.step = null;
+    ex.goal = g; save(); closeSheet(); rerender(); toast('Ziel gesichert');
+  },
+  'goal-del': () => { const c = exCtx(); if (!c) return; S.exercises[c.id].goal = null; save(); closeSheet(); rerender(); toast('Ziel entfernt'); },
+  'goal-step': () => {
+    const c = exCtx(); if (!c) return;
+    const g = S.exercises[c.id].goal; if (!g || g.weight == null || !g.step) return;
+    g.weight = Math.round((g.weight + g.step) * 100) / 100; save(); rerender(); toast('Neues Ziel übernommen');
+  },
+
+  'set-check': el => {
+    const c = exCtx(); if (!c) return;
+    const sets = ensureEntry(c.id, c.day), i = +el.dataset.i, s = sets[i]; if (!s) return;
+    if (!s.done && s.r == null) {
+      const inp = $app.querySelector(`[data-in="r"][data-i="${i}"]`);
+      if (inp) { inp.classList.remove('shake'); void inp.offsetWidth; inp.classList.add('shake'); inp.focus(); }
+      toast('Trag erst die Wiederholungen ein');
+      return;
+    }
+    if (document.activeElement && document.activeElement.blur) document.activeElement.blur();
+    s.done = !s.done; save(); rerender();
+  },
+  'set-add': () => {
+    const c = exCtx(); if (!c) return;
+    const sets = ensureEntry(c.id, c.day), last = sets[sets.length - 1];
+    sets.push({ w: last ? last.w : null, r: last ? last.r : null, done: false, drops: [] });
+    save(); rerender();
+  },
+  'set-menu': async el => {
+    const c = exCtx(); if (!c) return;
+    const i = +el.dataset.i;
+    const v = await actionSheet(`Satz ${i + 1}`, [{ label: 'Drop hinzufügen', v: 'drop' }, { label: 'Satz löschen', v: 'del', danger: true }]);
+    if (!v) return;
+    const sets = ensureEntry(c.id, c.day);
+    if (v === 'drop') addDrop(sets, i); else sets.splice(i, 1);
+    save(); rerender();
+  },
+  'drop-add': el => { const c = exCtx(); if (!c) return; addDrop(ensureEntry(c.id, c.day), +el.dataset.i); save(); rerender(); },
+  'drop-del': el => {
+    const c = exCtx(); if (!c) return;
+    const s = ensureEntry(c.id, c.day)[+el.dataset.i]; if (!s) return;
+    s.drops.splice(+el.dataset.j, 1); save(); rerender();
+  },
+
+  'prim-toggle': el => { const d = ui.draft, m = el.dataset.v; toggleIn(d.prim, m); d.sec = d.sec.filter(x => !d.prim.includes(x)); rerender(); },
+  'sec-toggle': el => { toggleIn(ui.draft.sec, el.dataset.v); rerender(); },
+  'muscle-new': async () => {
+    const n = await ask('Neue Muskelgruppe', '', 'z. B. Nacken', 'Hinzufügen'); if (!n) return;
+    if (!S.muscles.includes(n)) { S.muscles.push(n); save(); }
+    if (!ui.draft.prim.includes(n)) ui.draft.prim.push(n);
+    rerender();
+  },
+  'type-pick': el => { ui.draft.type = el.dataset.v; rerender(); },
+  'pick-img': () => document.getElementById('file-img').click(),
+  'img-remove': () => { ui.draft.image = null; rerender(); },
+  'edit-save': () => {
+    const d = ui.draft; if (!d) return;
+    d.name = (d.name || '').trim();
+    if (!d.name) { toast('Gib der Übung einen Namen'); document.getElementById('f-name')?.focus(); return; }
+    if (!d.prim.length) { toast('Wähle mindestens einen Hauptmuskel'); return; }
+    const old = d.id && S.exercises[d.id];
+    if (old) {
+      if (old.image && old.image !== d.image) delImg(old.image);
+      Object.assign(old, { name: d.name, prim: d.prim, sec: d.sec, type: d.type, desc: d.desc, image: d.image });
+    } else {
+      const id = uid();
+      S.exercises[id] = { ...d, id };
+      const day = stack[stack.length - 1].params.day;
+      if (day && S.days[day]) S.days[day].exercises.push(id);
+    }
+    ui.draft = null; save(); back(); toast(old ? 'Änderungen gesichert' : 'Übung erstellt');
+  },
+  'edit-delete': async () => {
+    const d = ui.draft, ex = d && S.exercises[d.id]; if (!ex) return;
+    if (!await confirmSheet(`${ex.name} löschen?`, 'Die Übung wird aus allen Tagen und aus deinen Übungen entfernt.', 'Übung löschen')) return;
+    Object.values(S.days).forEach(day => { day.exercises = day.exercises.filter(x => x !== ex.id); });
+    if (ex.image) delImg(ex.image);
+    delete S.exercises[ex.id];
+    ui.draft = null; save(); back(); toast('Übung gelöscht');
+  },
+
+  'per': el => { ui.per = el.dataset.v; rerender(); },
+  'half-toggle': () => { ui.half = !ui.half; rerender(); },
+
+  'backup-make': async () => {
+    try {
+      await flush();
+      const images = {};
+      for (const k of await Store.keys('images')) { const v = await Store.get('images', k); if (v) images[k] = v; }
+      const json = JSON.stringify({ app: 'gym-tracker', schema: SCHEMA, exportedAt: new Date().toISOString(), state: S, images });
+      const name = `gym-backup-${today()}.json`;
+      ui.backup = new File([json], name, { type: 'application/json' });
+      openSheet(`<div class="sheet-title">Backup bereit</div><p class="sheet-text">${esc(name)}, ${fmtBytes(json.length)}. Wähle im nächsten Schritt „In Dateien sichern“ und dann iCloud Drive.</p>
+        <button class="btn btn-primary" data-a="backup-share">Backup sichern</button><button class="btn" data-a="sheet-close">Abbrechen</button>`);
+    } catch (e) { toast('Backup konnte nicht erstellt werden'); }
+  },
+  'backup-share': async () => {
+    const f = ui.backup; if (!f) return;
+    try {
+      if (navigator.canShare && navigator.canShare({ files: [f] })) await navigator.share({ files: [f] });
+      else download(f);
+      backupDone();
+    } catch (e) {
+      if (e && e.name === 'AbortError') return;
+      download(f); backupDone();
+    }
+  },
+  'import': () => document.getElementById('file-import').click(),
+  'wipe': async () => {
+    if (!await confirmSheet('Alle Daten löschen?', 'Pläne, Übungen, Bilder und dein kompletter Verlauf werden gelöscht. Das lässt sich nicht rückgängig machen.', 'Alles löschen')) return;
+    await Store.clear('images'); imgCache.clear();
+    S = emptyState(); await flush();
+    stack = [{ view: 'home', params: {}, scroll: 0 }]; render('top'); toast('Alle Daten gelöscht');
+  }
+};
+
+/* ---------- Events ---------- */
+document.addEventListener('click', e => {
+  const el = e.target.closest('[data-a]');
+  if (!el || el.disabled) return;
+  const fn = A[el.dataset.a];
+  if (fn) { e.preventDefault(); fn(el, e); }
+});
+
+document.addEventListener('input', e => {
+  const el = e.target;
+  if (el.dataset.in) { onSetInput(el); return; }
+  const f = el.dataset.field; if (!f) return;
+  if (f === 'q') {
+    ui.q = el.value;
+    const l = document.getElementById('lib-list');
+    const tab = ui.libTab || (Object.keys(S.exercises).length ? 'mine' : 'lib');
+    if (l) { l.innerHTML = tab === 'lib' ? libBrowse() : libList(); hydrateImages(l); }
+  }
+  else if (f === 'pq') { ui.pq = el.value; refreshPicker(); }
+  else if (f === 'note-ex') { const ex = S.exercises[el.dataset.id]; if (ex) { ex.note = el.value; save(); } }
+  else if (f === 'note-day') { const d = S.days[el.dataset.id]; if (d) { d.note = el.value; save(); } }
+  else if (ui.draft && (f === 'name' || f === 'desc')) ui.draft[f] = el.value;
+});
+
+function onSetInput(el) {
+  const c = exCtx(); if (!c) return;
+  const s = ensureEntry(c.id, c.day)[+el.dataset.i]; if (!s) return;
+  const k = el.dataset.in;
+  let v = num(el.value);
+  if ((k === 'r' || k === 'dr') && v != null) v = Math.max(0, Math.round(v));
+  if (k === 'w') s.w = v;
+  else if (k === 'r') s.r = v;
+  else { const d = (s.drops || [])[+el.dataset.j]; if (!d) return; if (k === 'dw') d.w = v; else d.r = v; }
+  save();
+}
+
+document.addEventListener('keydown', e => {
+  if (e.key === 'Enter' && e.target.classList && e.target.classList.contains('inp')) e.target.blur();
+});
+
+document.getElementById('file-img').addEventListener('change', async e => {
+  const f = e.target.files && e.target.files[0]; e.target.value = '';
+  if (!f || !ui.draft) return;
+  toast('Bild wird geladen');
+  try { const id = await putImg(await processImage(f)); ui.draft.image = id; rerender(); }
+  catch (err) { toast('Dieses Bild konnte nicht geladen werden'); }
+});
+
+document.getElementById('file-import').addEventListener('change', async e => {
+  const f = e.target.files && e.target.files[0]; e.target.value = '';
+  if (!f) return;
+  let data;
+  try { data = JSON.parse(await f.text()); } catch (err) { toast('Die Datei ist kein gültiges Backup'); return; }
+  if (!data || data.app !== 'gym-tracker' || !data.state) { toast('Die Datei ist kein Backup dieser App'); return; }
+  if (!await confirmSheet('Backup wiederherstellen?', `Backup vom ${new Date(data.exportedAt).toLocaleDateString('de-DE')}. Deine aktuellen Daten werden dabei ersetzt.`, 'Wiederherstellen')) return;
+  try {
+    S = migrate(data.state);
+    await Store.clear('images'); imgCache.clear();
+    for (const [k, v] of Object.entries(data.images || {})) await Store.put('images', k, v);
+    await flush();
+    stack = [{ view: 'home', params: {}, scroll: 0 }]; render('top'); toast('Backup wiederhergestellt');
+  } catch (err) { toast('Wiederherstellen hat nicht geklappt'); }
+});
+
+/* ---------- Start ---------- */
+(async function init() {
+  await Store.open();
+  let raw = null;
+  try { raw = await Store.get('kv', 'state'); } catch (e) {}
+  const wasV1 = raw && (raw.version || 1) < SCHEMA;
+  S = migrate(raw);
+  const t = today();
+  S.sessions = S.sessions.filter(s => s.date === t || Object.values(s.entries).some(x => doneSets(x).length));
+  if (wasV1) flush();
+  stack = [{ view: 'home', params: {}, scroll: 0 }];
+  render('top');
+  gcImages();
+  try { if (navigator.storage && navigator.storage.persist) navigator.storage.persist(); } catch (e) {}
+  if ('serviceWorker' in navigator && location.protocol === 'https:') navigator.serviceWorker.register('sw.js').catch(() => {});
+})();
+
+</script>
+</body>
+</html>
