@@ -1,10 +1,16 @@
-// Offline-Cache für die Gym-App. Bei Updates CACHE-Version erhöhen.
-const CACHE = 'gym-v4';
+// Offline-Cache für die Gym-App. Bei jedem Update die CACHE-Version erhöhen.
+const CACHE = 'gym-v4-1';
 const ASSETS = ['./', './index.html', './manifest.json', './icon-180.png', './icon-512.png'];
 const EXTERNAL = ['fonts.googleapis.com', 'fonts.gstatic.com', 'raw.githubusercontent.com'];
 
+// Beim Installieren die Dateien frisch vom Server holen und den HTTP-Cache umgehen,
+// sonst landet bei GitHub Pages (10 Minuten Cache) manchmal noch die alte Version im Speicher.
 self.addEventListener('install', e => {
-  e.waitUntil(caches.open(CACHE).then(c => c.addAll(ASSETS)).then(() => self.skipWaiting()));
+  e.waitUntil(
+    caches.open(CACHE)
+      .then(c => Promise.all(ASSETS.map(u => fetch(new Request(u, { cache: 'reload' })).then(r => (r.ok ? c.put(u, r) : null)))))
+      .then(() => self.skipWaiting())
+  );
 });
 
 self.addEventListener('activate', e => {
@@ -35,10 +41,10 @@ self.addEventListener('fetch', e => {
     return;
   }
 
-  // App selbst: sofort aus dem Cache, im Hintergrund aktualisieren
+  // App selbst: sofort aus dem Cache, im Hintergrund am HTTP-Cache vorbei aktualisieren
   e.respondWith(caches.open(CACHE).then(async cache => {
     const cached = await cache.match(req, { ignoreSearch: true });
-    const network = fetch(req).then(res => {
+    const network = fetch(url.href, { cache: 'no-cache' }).then(res => {
       if (res && res.ok) cache.put(req, res.clone());
       return res;
     }).catch(() => null);

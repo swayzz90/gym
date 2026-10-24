@@ -364,6 +364,7 @@ textarea.field{height:auto;min-height:120px;padding:13px 14px;resize:vertical;li
 /* ---------- Grundlagen ---------- */
 const $app = document.getElementById('app');
 const SCHEMA = 4;
+const APP_VERSION = '4.1';
 const MUSCLES = ['Brust','Vordere Schulter','Seitliche Schulter','Hintere Schulter','Trizeps','Latissimus','Oberer Rücken','Trapez','Unterer Rücken','Bizeps','Unterarme','Bauch','Schräge Bauchmuskeln','Quadrizeps','Beinbeuger','Gesäß','Adduktoren','Waden'];
 const V1_MUSCLES = ['Brust','Rücken','Schultern','Bizeps','Trizeps','Unterarme','Quadrizeps','Beinbeuger','Gesäß','Waden','Bauch','Ganzkörper'];
 const AREAS = ['Alle','Brust','Schultern','Rücken','Arme','Beine','Bauch','Körpergewicht'];
@@ -1127,7 +1128,8 @@ const Views = {
       <button class="btn btn-primary" data-a="backup-make">Backup erstellen</button>
       <button class="btn" data-a="import">Backup wiederherstellen</button>
       <button class="btn btn-danger" style="margin-top:36px" data-a="wipe">Alle Daten löschen</button>
-      <p class="hint" style="margin-top:28px">Bilder und Grundinfos der Bibliothek stammen aus der freien Übungsdatenbank free-exercise-db. Die Texte wurden für diese App auf Deutsch geschrieben.</p>`;
+      <p class="hint" style="margin-top:28px"><b>App-Version ${APP_VERSION}</b></p>
+      <p class="hint">Bilder und Grundinfos der Bibliothek stammen aus der freien Übungsdatenbank free-exercise-db. Die Texte wurden für diese App auf Deutsch geschrieben.</p>`;
   }
 };
 
@@ -1848,7 +1850,18 @@ document.getElementById('file-import').addEventListener('change', async e => {
   try { if (navigator.storage && navigator.storage.persist) navigator.storage.persist(); } catch (e) {}
   setInterval(tickTimers, 30000);
   document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') { autoClose(); tickTimers(); } });
-  if ('serviceWorker' in navigator && location.protocol === 'https:') navigator.serviceWorker.register('sw.js').catch(() => {});
+  if ('serviceWorker' in navigator && location.protocol === 'https:') {
+    // Gab es schon eine aktive Version? Dann lädt die App nach einem Update einmal selbst neu.
+    const hadController = !!navigator.serviceWorker.controller;
+    let reloaded = false;
+    navigator.serviceWorker.addEventListener('controllerchange', () => {
+      if (!hadController || reloaded) return;
+      reloaded = true;
+      if (activeSession()) { toast('Neue Version bereit, sie startet beim nächsten Öffnen'); return; }
+      flush().then(() => location.reload());
+    });
+    navigator.serviceWorker.register('sw.js').catch(() => {});
+  }
 })();
 
 </script>
