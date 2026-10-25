@@ -448,6 +448,10 @@ body.swiping #app{position:relative;z-index:2;background:var(--black);min-height
 /* V4.7: Scroll-Balken ausblenden (Seite, Fenster, Tabellen) */
 html,*{scrollbar-width:none;-ms-overflow-style:none}
 html::-webkit-scrollbar,body::-webkit-scrollbar,*::-webkit-scrollbar{display:none;width:0;height:0;background:transparent}
+
+/* V4.8: vorgemerkte Werte in Grau */
+.inp.ghost::placeholder{color:var(--ash);font-weight:700;opacity:1}
+.set.has-ghost:not(.done) .check{border-color:var(--ash);color:var(--ash)}
 </style>
 </head>
 <body>
@@ -463,7 +467,7 @@ window.BODY_IMG="data:image/webp;base64,UklGRgiwAABXRUJQVlA4WAoAAAAQAAAAZwEA9wMA
 /* ---------- Grundlagen ---------- */
 const $app = document.getElementById('app');
 const SCHEMA = 6;
-const APP_VERSION = '4.7';
+const APP_VERSION = '4.8';
 const MUSCLES = ['Brust','Vordere Schulter','Seitliche Schulter','Hintere Schulter','Trizeps','Latissimus','Oberer Rücken','Trapez','Unterer Rücken','Bizeps','Unterarme','Bauch','Schräge Bauchmuskeln','Quadrizeps','Beinbeuger','Gesäß','Adduktoren','Waden'];
 const V1_MUSCLES = ['Brust','Rücken','Schultern','Bizeps','Trizeps','Unterarme','Quadrizeps','Beinbeuger','Gesäß','Waden','Bauch','Ganzkörper'];
 const AREAS = ['Alle','Brust','Schultern','Rücken','Arme','Beine','Bauch','Körpergewicht'];
@@ -671,6 +675,14 @@ function templateRows(exId, dayId) {
   const n = (p && p.sets) || (lp ? lp.sets.length : 1);
   return Array.from({ length: n }, () => ({ w: null, r: null, done: false, drops: [] }));
 }
+// Vorgemerkte Werte: Gewicht und Wdh des Satzes davor, laufen von Satz zu Satz weiter
+function effVal(rows, i) {
+  let w = null, r = null;
+  for (let k = 0; k <= i && k < rows.length; k++) { if (rows[k].w != null) w = rows[k].w; if (rows[k].r != null) r = rows[k].r; }
+  return { w, r };
+}
+const ghostFor = (rows, i) => i > 0 ? effVal(rows, i - 1) : { w: null, r: null };
+const ghostW = (w, bw) => bw ? (w ? '+' + fmt(w) : 'BW') : fmt(w);
 function currentRows(exId, dayId) { const x = activeFor(dayId); return (x && x.entries[exId]) || templateRows(exId, dayId); }
 function ensureEntry(exId, dayId) {
   const x = activeFor(dayId); if (!x) return null;
@@ -1633,22 +1645,23 @@ function setsBlock(ex, dayId) {
   const unit = ex.type === 'bw' ? 'BW +kg' : 'kg';
   return `${lastLine}<div class="sets">
       <div class="sets-head"><span>Satz</span><span>${unit}</span><span>Wdh${repText(effPlan(ex, dayId)) ? ' ' + repText(effPlan(ex, dayId)) : ''}</span><span></span><span>${rows.length ? `${done}/${rows.length}` : ''}</span></div>
-      ${(() => { const pr = sessionPR(ex, sess); return rows.map((r, i) => setRow(r, i, ex, lp ? lp.sets[i] : null, pr && pr.idx === i ? pr : null)).join(''); })()}
+      ${(() => { const pr = sessionPR(ex, sess); return rows.map((r, i) => setRow(r, i, ex, lp ? lp.sets[i] : null, pr && pr.idx === i ? pr : null, ghostFor(rows, i))).join(''); })()}
     </div>
     <button class="btn" data-a="set-add">${ICON.plus}Satz hinzufügen</button>`;
 }
 
-function setRow(s, i, ex, last, pr) {
+function setRow(s, i, ex, last, pr, ghost) {
   const bw = ex.type === 'bw';
+  const gw = s.w == null && ghost && ghost.w != null ? ghost.w : null, gr = s.r == null && ghost && ghost.r != null ? ghost.r : null;
   const drops = (s.drops || []).map((d, j) => `<div class="drop-row"><span class="drop-mark">↳</span>
       <input class="inp" inputmode="decimal" enterkeyhint="done" data-in="dw" data-i="${i}" data-j="${j}" value="${bw && d.w ? '+' + fmt(d.w) : fmt(d.w)}" placeholder="${bw ? 'BW' : 'kg'}" aria-label="Drop ${j + 1} Gewicht">
       <input class="inp" inputmode="numeric" enterkeyhint="done" data-in="dr" data-i="${i}" data-j="${j}" value="${d.r ?? ''}" placeholder="Wdh" aria-label="Drop ${j + 1} Wiederholungen">
       <button class="icon-btn" data-a="drop-del" data-i="${i}" data-j="${j}" aria-label="Drop entfernen">${ICON.x}</button><span></span></div>`).join('');
   const lastTxt = last ? `Last ${setHtml(last, ex.type)}` : 'Last –';
-  return `<div class="set ${s.done ? 'done' : ''} ${ui.act === i ? 'act' : ''}" data-set="${i}"><div class="set-row">
+  return `<div class="set ${s.done ? 'done' : ''} ${ui.act === i ? 'act' : ''} ${gr != null && !s.done ? 'has-ghost' : ''}" data-set="${i}"><div class="set-row">
       <button class="set-no" data-a="set-menu" data-i="${i}" aria-label="Satz ${i + 1} Optionen">${i + 1}</button>
-      <input class="inp" inputmode="decimal" enterkeyhint="done" data-in="w" data-i="${i}" value="${bw && s.w ? '+' + fmt(s.w) : fmt(s.w)}" placeholder="${bw ? 'BW' : '–'}" aria-label="Satz ${i + 1} ${bw ? 'Zusatzgewicht' : 'Gewicht'}">
-      <input class="inp" inputmode="numeric" enterkeyhint="done" data-in="r" data-i="${i}" value="${s.r ?? ''}" placeholder="–" aria-label="Satz ${i + 1} Wiederholungen">
+      <input class="inp ${gw != null ? 'ghost' : ''}" inputmode="decimal" enterkeyhint="done" data-in="w" data-i="${i}" value="${bw && s.w ? '+' + fmt(s.w) : fmt(s.w)}" placeholder="${gw != null ? ghostW(gw, bw) : (bw ? 'BW' : '–')}" aria-label="Satz ${i + 1} ${bw ? 'Zusatzgewicht' : 'Gewicht'}">
+      <input class="inp ${gr != null ? 'ghost' : ''}" inputmode="numeric" enterkeyhint="done" data-in="r" data-i="${i}" value="${s.r ?? ''}" placeholder="${gr != null ? gr : '–'}" aria-label="Satz ${i + 1} Wiederholungen">
       <button class="drop-btn" data-a="drop-add" data-i="${i}">Drop</button>
       <button class="check" data-a="set-check" data-i="${i}" aria-label="Satz ${i + 1} erledigt">${ICON.check}</button>
       ${pr ? `<button class="pr" data-a="pr-info" data-label="${esc(pr.label)}" aria-label="Persönlicher Rekord: ${esc(pr.label)}">PR</button>` : ''}
@@ -1828,7 +1841,7 @@ function startDraft(id) {
 function addDrop(sets, i) {
   const s = sets[i]; if (!s) return;
   s.drops = s.drops || [];
-  const base = s.drops.length ? s.drops[s.drops.length - 1].w : s.w;
+  const base = s.drops.length ? s.drops[s.drops.length - 1].w : (s.w != null ? s.w : ghostFor(sets, i).w);
   s.drops.push({ w: dropWeight(base), r: null });
 }
 function download(file) {
@@ -2004,11 +2017,17 @@ const A = {
     const c = exCtx(); if (!c) return;
     const sets = ensureEntry(c.id, c.day); if (!sets) return;
     const i = +el.dataset.i, r = sets[i]; if (!r) return;
-    if (!r.done && r.r == null) {
-      const inp = $app.querySelector(`[data-in="r"][data-i="${i}"]`);
-      if (inp) { inp.classList.remove('shake'); void inp.offsetWidth; inp.classList.add('shake'); }
-      toast('Trag erst die Wiederholungen ein');
-      return;
+    if (!r.done) {
+      // Leere Felder übernehmen die vorgemerkten Werte vom Satz davor
+      const g = ghostFor(sets, i);
+      if (r.r == null && g.r == null) {
+        const inp = $app.querySelector(`[data-in="r"][data-i="${i}"]`);
+        if (inp) { inp.classList.remove('shake'); void inp.offsetWidth; inp.classList.add('shake'); }
+        toast('Trag erst die Wiederholungen ein');
+        return;
+      }
+      if (r.r == null) r.r = g.r;
+      if (r.w == null && g.w != null) r.w = g.w;
     }
     if (document.activeElement && document.activeElement.blur) document.activeElement.blur();
     r.done = !r.done;
@@ -2020,7 +2039,7 @@ const A = {
     const c = exCtx(); if (!c) return;
     const sets = ensureEntry(c.id, c.day); if (!sets) return;
     const last = sets[sets.length - 1];
-    sets.push({ w: last ? last.w : null, r: null, done: false, drops: [] });
+    sets.push({ w: null, r: null, done: false, drops: [] });
     ui.act = sets.length - 1;
     save(); refreshSets();
   },
@@ -2045,21 +2064,21 @@ const A = {
     const sets = ensureEntry(c.id, c.day); if (!sets) return;
     const i = +el.dataset.i, r = sets[i]; if (!r) return;
     const ex = S.exercises[c.id], k = el.dataset.k, dir = +el.dataset.d;
-    const lp = lastPerformance(c.id, c.day), base = lp && lp.sets[i];
+    const lp = lastPerformance(c.id, c.day), base = lp && lp.sets[i], g = ghostFor(sets, i);
     if (k === 'w') {
       const stp = defaultStep(ex);
-      const cur = r.w != null ? r.w : (base && base.w != null ? base.w : (ex.type === 'bw' ? 0 : null));
+      const cur = r.w != null ? r.w : (g.w != null ? g.w : (base && base.w != null ? base.w : (ex.type === 'bw' ? 0 : null)));
       let v = cur == null ? (dir > 0 ? stp : 0) : cur + dir * stp;
       v = Math.max(0, Math.round(v * 100) / 100);
       r.w = (ex.type === 'bw' && v === 0) ? null : v;
     } else {
-      const cur = r.r != null ? r.r : (base && base.r != null ? base.r : 0);
+      const cur = r.r != null ? r.r : (g.r != null ? g.r : (base && base.r != null ? base.r : 0));
       r.r = Math.max(0, cur + dir);
     }
     const box = el.closest('.set');
     const wi = box.querySelector('[data-in="w"]'), ri = box.querySelector('[data-in="r"]');
     if (wi) wi.value = ex.type === 'bw' && r.w ? '+' + fmt(r.w) : fmt(r.w); if (ri) ri.value = r.r ?? '';
-    save();
+    updateGhosts(); save();
   },
   'last-use': el => {
     const c = exCtx(); if (!c) return;
@@ -2272,7 +2291,22 @@ function onSetInput(el) {
   if (k === 'w') s.w = v;
   else if (k === 'r') s.r = v;
   else { const d = (s.drops || [])[+el.dataset.j]; if (!d) return; if (k === 'dw') d.w = v; else d.r = v; }
+  if (k === 'w' || k === 'r') updateGhosts();
   save();
+}
+// Grau vorgemerkte Werte in den folgenden Sätzen live nachziehen, ohne die Seite neu aufzubauen
+function updateGhosts() {
+  const c = exCtx(); if (!c) return;
+  const ex = S.exercises[c.id], rows = currentRows(c.id, c.day), bw = ex.type === 'bw';
+  document.querySelectorAll('#sets .set[data-set]').forEach(box => {
+    const i = +box.dataset.set, row = rows[i]; if (!row) return;
+    const g = ghostFor(rows, i);
+    const gw = row.w == null && g.w != null ? g.w : null, gr = row.r == null && g.r != null ? g.r : null;
+    const wi = box.querySelector('[data-in="w"]'), ri = box.querySelector('[data-in="r"]');
+    if (wi) { wi.placeholder = gw != null ? ghostW(gw, bw) : (bw ? 'BW' : '–'); wi.classList.toggle('ghost', gw != null); }
+    if (ri) { ri.placeholder = gr != null ? String(gr) : '–'; ri.classList.toggle('ghost', gr != null); }
+    box.classList.toggle('has-ghost', gr != null && !row.done);
+  });
 }
 
 document.addEventListener('focusin', e => {
