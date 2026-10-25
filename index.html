@@ -444,6 +444,10 @@ body.swiping #app{position:relative;z-index:2;background:var(--black);min-height
 .under-bar .bar{position:relative;top:0}
 .under-body{position:absolute;left:0;right:0;top:calc(env(safe-area-inset-top,0px) + 50px);bottom:0;overflow:hidden}
 .under-shade{position:absolute;inset:0;background:#000;opacity:.55;z-index:3}
+
+/* V4.7: Scroll-Balken ausblenden (Seite, Fenster, Tabellen) */
+html,*{scrollbar-width:none;-ms-overflow-style:none}
+html::-webkit-scrollbar,body::-webkit-scrollbar,*::-webkit-scrollbar{display:none;width:0;height:0;background:transparent}
 </style>
 </head>
 <body>
@@ -459,7 +463,7 @@ window.BODY_IMG="data:image/webp;base64,UklGRgiwAABXRUJQVlA4WAoAAAAQAAAAZwEA9wMA
 /* ---------- Grundlagen ---------- */
 const $app = document.getElementById('app');
 const SCHEMA = 6;
-const APP_VERSION = '4.6';
+const APP_VERSION = '4.7';
 const MUSCLES = ['Brust','Vordere Schulter','Seitliche Schulter','Hintere Schulter','Trizeps','Latissimus','Oberer Rücken','Trapez','Unterer Rücken','Bizeps','Unterarme','Bauch','Schräge Bauchmuskeln','Quadrizeps','Beinbeuger','Gesäß','Adduktoren','Waden'];
 const V1_MUSCLES = ['Brust','Rücken','Schultern','Bizeps','Trizeps','Unterarme','Quadrizeps','Beinbeuger','Gesäß','Waden','Bauch','Ganzkörper'];
 const AREAS = ['Alle','Brust','Schultern','Rücken','Arme','Beine','Bauch','Körpergewicht'];
