@@ -434,6 +434,16 @@ textarea.field{height:auto;min-height:120px;padding:13px 14px;resize:vertical;li
 .rec-table td:nth-child(2){color:var(--chalk);font:700 20px/1.2 var(--plate);text-align:right;padding-right:14px;font-variant-numeric:tabular-nums;white-space:nowrap}
 .rec-table td:nth-child(3){text-align:right;font-size:13px;color:var(--smoke);white-space:nowrap}
 .bm-img{opacity:.95}
+
+/* V4.6: Zurück wischen */
+body.swiping{overflow:hidden}
+body.swiping #app{position:relative;z-index:2;background:var(--black);min-height:100vh;box-shadow:-12px 0 24px rgba(0,0,0,.6),-1px 0 0 var(--steel);will-change:transform}
+#under{position:fixed;inset:0;z-index:1;background:var(--black);overflow:hidden;padding-top:env(safe-area-inset-top,0px);will-change:transform;pointer-events:none}
+.app-clone{max-width:620px;margin:0 auto;padding:0 18px}
+.under-bar{position:relative;z-index:2;background:var(--black)}
+.under-bar .bar{position:relative;top:0}
+.under-body{position:absolute;left:0;right:0;top:calc(env(safe-area-inset-top,0px) + 50px);bottom:0;overflow:hidden}
+.under-shade{position:absolute;inset:0;background:#000;opacity:.55;z-index:3}
 </style>
 </head>
 <body>
@@ -449,7 +459,7 @@ window.BODY_IMG="data:image/webp;base64,UklGRgiwAABXRUJQVlA4WAoAAAAQAAAAZwEA9wMA
 /* ---------- Grundlagen ---------- */
 const $app = document.getElementById('app');
 const SCHEMA = 6;
-const APP_VERSION = '4.5';
+const APP_VERSION = '4.6';
 const MUSCLES = ['Brust','Vordere Schulter','Seitliche Schulter','Hintere Schulter','Trizeps','Latissimus','Oberer Rücken','Trapez','Unterer Rücken','Bizeps','Unterarme','Bauch','Schräge Bauchmuskeln','Quadrizeps','Beinbeuger','Gesäß','Adduktoren','Waden'];
 const V1_MUSCLES = ['Brust','Rücken','Schultern','Bizeps','Trizeps','Unterarme','Quadrizeps','Beinbeuger','Gesäß','Waden','Bauch','Ganzkörper'];
 const AREAS = ['Alle','Brust','Schultern','Rücken','Arme','Beine','Bauch','Körpergewicht'];
@@ -2307,6 +2317,76 @@ document.getElementById('file-import').addEventListener('change', async e => {
     stack = [{ view: 'home', params: {}, scroll: 0 }]; render('top'); toast('Backup wiederhergestellt');
   } catch (err) { toast('Wiederherstellen hat nicht geklappt'); }
 });
+
+/* ---------- Zurück wischen vom linken Rand ----------
+   Web-Apps auf dem Home-Bildschirm haben keine eingebaute Zurück-Geste, darum hier nachgebaut.
+   Die aktuelle Seite folgt dem Finger, darunter liegt schon die vorherige. */
+const EDGE = 24;
+let sw = null;
+function buildUnder(prev) {
+  const under = document.createElement('div');
+  under.id = 'under';
+  const html = (() => { try { return Views[prev.view](prev.params); } catch (e) { return ''; } })() || '';
+  under.innerHTML = `<div class="under-bar app-clone"></div><div class="under-body"><div class="app-clone" style="transform:translateY(${-(prev.scroll || 0)}px)">${html}</div></div><div class="under-shade"></div>`;
+  const bar = under.querySelector('.under-body .bar');
+  if (bar) under.querySelector('.under-bar').appendChild(bar);
+  document.body.appendChild(under);
+  hydrateImages(under);
+  return under;
+}
+function swipeTo(dx, animate) {
+  const W = window.innerWidth, p = Math.min(1, dx / W);
+  const tr = animate ? 'transform .22s ease-out' : 'none';
+  $app.style.transition = tr; $app.style.transform = `translateX(${dx}px)`;
+  if (sw && sw.under) {
+    sw.under.style.transition = tr; sw.under.style.transform = `translateX(${-(1 - p) * W * 0.28}px)`;
+    const sh = sw.under.querySelector('.under-shade');
+    sh.style.transition = animate ? 'opacity .22s ease-out' : 'none'; sh.style.opacity = String(0.55 * (1 - p));
+  }
+}
+function swipeCleanup() {
+  if (sw && sw.under) sw.under.remove();
+  $app.style.transition = ''; $app.style.transform = '';
+  document.body.classList.remove('swiping');
+  sw = null;
+}
+document.addEventListener('touchstart', e => {
+  if (sw || sheetEl || stack.length <= 1 || e.touches.length !== 1) return;
+  const t = e.touches[0];
+  if (t.clientX > EDGE) return;
+  sw = { x0: t.clientX, y0: t.clientY, t0: Date.now(), dx: 0, decided: false, under: null };
+}, { passive: true });
+document.addEventListener('touchmove', e => {
+  if (!sw || sw.done) return;
+  const t = e.touches[0], dx = t.clientX - sw.x0, dy = t.clientY - sw.y0;
+  if (!sw.decided) {
+    if (Math.abs(dx) < 8 && Math.abs(dy) < 8) return;
+    if (dx <= 0 || Math.abs(dy) > Math.abs(dx)) { sw = null; return; }
+    sw.decided = true;
+    if (document.activeElement && document.activeElement.blur) document.activeElement.blur();
+    document.body.classList.add('swiping');
+    sw.under = buildUnder(stack[stack.length - 2]);
+  }
+  e.preventDefault();
+  sw.dx = Math.max(0, dx);
+  swipeTo(sw.dx, false);
+}, { passive: false });
+function swipeEnd() {
+  if (!sw) return;
+  if (!sw.decided) { sw = null; return; }
+  if (sw.done) return;
+  const W = window.innerWidth, v = sw.dx / Math.max(1, Date.now() - sw.t0);
+  sw.done = true;
+  if (sw.dx > W * 0.33 || (v > 0.5 && sw.dx > 40)) {
+    swipeTo(W, true);
+    setTimeout(() => { swipeCleanup(); back(); }, 230);
+  } else {
+    swipeTo(0, true);
+    setTimeout(swipeCleanup, 230);
+  }
+}
+document.addEventListener('touchend', swipeEnd);
+document.addEventListener('touchcancel', swipeEnd);
 
 /* ---------- Start ---------- */
 (async function init() {
