@@ -452,6 +452,10 @@ html::-webkit-scrollbar,body::-webkit-scrollbar,*::-webkit-scrollbar{display:non
 /* V4.8: vorgemerkte Werte in Grau */
 .inp.ghost::placeholder{color:var(--ash);font-weight:700;opacity:1}
 .set.has-ghost:not(.done) .check{border-color:var(--ash);color:var(--ash)}
+
+/* V4.9: Startseite hat keine Kopfleiste, Vorschau beim Zurückwischen ohne Versatz */
+#under.no-bar .under-bar{display:none}
+#under.no-bar .under-body{top:env(safe-area-inset-top,0px)}
 </style>
 </head>
 <body>
@@ -467,7 +471,7 @@ window.BODY_IMG="data:image/webp;base64,UklGRgiwAABXRUJQVlA4WAoAAAAQAAAAZwEA9wMA
 /* ---------- Grundlagen ---------- */
 const $app = document.getElementById('app');
 const SCHEMA = 6;
-const APP_VERSION = '4.8';
+const APP_VERSION = '4.9';
 const MUSCLES = ['Brust','Vordere Schulter','Seitliche Schulter','Hintere Schulter','Trizeps','Latissimus','Oberer Rücken','Trapez','Unterer Rücken','Bizeps','Unterarme','Bauch','Schräge Bauchmuskeln','Quadrizeps','Beinbeuger','Gesäß','Adduktoren','Waden'];
 const V1_MUSCLES = ['Brust','Rücken','Schultern','Bizeps','Trizeps','Unterarme','Quadrizeps','Beinbeuger','Gesäß','Waden','Bauch','Ganzkörper'];
 const AREAS = ['Alle','Brust','Schultern','Rücken','Arme','Beine','Bauch','Körpergewicht'];
@@ -1726,6 +1730,7 @@ function openSheet(inner, onClose) {
   w.className = 'sheet-wrap';
   w.innerHTML = `<div class="sheet-bg" data-a="sheet-close"></div><div class="sheet" role="dialog" aria-modal="true">${inner}</div>`;
   w._onClose = onClose;
+  w._sy = window.scrollY;
   document.body.appendChild(w);
   sheetEl = w;
   fitSheet();
@@ -1739,6 +1744,7 @@ function closeSheet(val) {
   w.classList.remove('open');
   setTimeout(() => w.remove(), 230);
   document.body.classList.remove('noscroll');
+  if (w._sy != null && Math.abs(window.scrollY - w._sy) > 1) window.scrollTo(0, w._sy);
   if (w._onClose) w._onClose(val);
 }
 function fitSheet() {
@@ -2368,6 +2374,7 @@ function buildUnder(prev) {
   under.innerHTML = `<div class="under-bar app-clone"></div><div class="under-body"><div class="app-clone" style="transform:translateY(${-(prev.scroll || 0)}px)">${html}</div></div><div class="under-shade"></div>`;
   const bar = under.querySelector('.under-body .bar');
   if (bar) under.querySelector('.under-bar').appendChild(bar);
+  else under.classList.add('no-bar');   // Startseite hat keine Kopfleiste, sonst sitzt die Vorschau 50 px zu tief
   document.body.appendChild(under);
   hydrateImages(under);
   return under;
@@ -2382,10 +2389,12 @@ function swipeTo(dx, animate) {
     sh.style.transition = animate ? 'opacity .22s ease-out' : 'none'; sh.style.opacity = String(0.55 * (1 - p));
   }
 }
-function swipeCleanup() {
+function swipeCleanup(keepScroll) {
+  const sy = sw && sw.sy;
   if (sw && sw.under) sw.under.remove();
   $app.style.transition = ''; $app.style.transform = '';
   document.body.classList.remove('swiping');
+  if (keepScroll && sy != null && Math.abs(window.scrollY - sy) > 1) window.scrollTo(0, sy);
   sw = null;
 }
 document.addEventListener('touchstart', e => {
@@ -2402,6 +2411,7 @@ document.addEventListener('touchmove', e => {
     if (dx <= 0 || Math.abs(dy) > Math.abs(dx)) { sw = null; return; }
     sw.decided = true;
     if (document.activeElement && document.activeElement.blur) document.activeElement.blur();
+    sw.sy = window.scrollY;
     document.body.classList.add('swiping');
     sw.under = buildUnder(stack[stack.length - 2]);
   }
@@ -2420,7 +2430,7 @@ function swipeEnd() {
     setTimeout(() => { swipeCleanup(); back(); }, 230);
   } else {
     swipeTo(0, true);
-    setTimeout(swipeCleanup, 230);
+    setTimeout(() => swipeCleanup(true), 230);
   }
 }
 document.addEventListener('touchend', swipeEnd);
