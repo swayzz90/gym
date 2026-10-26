@@ -1,5 +1,5 @@
 // Offline-Cache für die Gym-App. Bei jedem Update die CACHE-Version erhöhen.
-const CACHE = 'gym-v4-9';
+const CACHE = 'gym-v5-1';
 const ASSETS = ['./', './index.html', './manifest.json', './icon-180.png', './icon-512.png'];
 const EXTERNAL = ['fonts.googleapis.com', 'fonts.gstatic.com', 'raw.githubusercontent.com'];
 
