@@ -471,7 +471,7 @@ window.BODY_IMG="data:image/webp;base64,UklGRgiwAABXRUJQVlA4WAoAAAAQAAAAZwEA9wMA
 /* ---------- Grundlagen ---------- */
 const $app = document.getElementById('app');
 const SCHEMA = 8;
-const APP_VERSION = '5.2';
+const APP_VERSION = '5.3';
 const MUSCLES = ['Brust','Vordere Schulter','Seitliche Schulter','Hintere Schulter','Trizeps','Latissimus','Oberer Rücken','Trapez','Unterer Rücken','Bizeps','Unterarme','Bauch','Schräge Bauchmuskeln','Quadrizeps','Beinbeuger','Gesäß','Adduktoren','Waden'];
 const V1_MUSCLES = ['Brust','Rücken','Schultern','Bizeps','Trizeps','Unterarme','Quadrizeps','Beinbeuger','Gesäß','Waden','Bauch','Ganzkörper'];
 const AREAS = ['Alle','Brust','Schultern','Rücken','Arme','Beine','Bauch','Körpergewicht'];
@@ -1475,10 +1475,9 @@ const Views = {
 
 function planLine(ex, dayId) {
   const p = effPlan(ex, dayId), multi = daysWith(ex.id).length > 1, d = S.days[dayId];
-  const own = d && d.plans && d.plans[ex.id];
   const label = multi && d ? `So trainiere ich das bei ${d.name}` : 'So trainiere ich das';
   if (!p || !p.sets) return `<button class="plan-line" data-a="plan-open"><span>${multi && d ? `Sätze und Wdh für ${esc(d.name)} festlegen` : 'Sätze und Wdh-Bereich festlegen'}</span><b>+</b></button>`;
-  return `<button class="plan-line" data-a="plan-open"><span>${esc(label)}${multi && !own ? '<small>allgemeine Angabe</small>' : ''}</span><b>${p.sets} ${p.sets === 1 ? 'Satz' : 'Sätze'}${repText(p) ? ', ' + repText(p) + ' Wdh' : ''}</b></button>`;
+  return `<button class="plan-line" data-a="plan-open"><span>${esc(label)}</span><b>${p.sets} ${p.sets === 1 ? 'Satz' : 'Sätze'}${repText(p) ? ', ' + repText(p) + ' Wdh' : ''}</b></button>`;
 }
 /* Gezeichnete Figur mit Messlinien. Werte stehen an der Körperstelle, Änderung zum vorherigen Eintrag daneben. */
 function insightsHtml() {
