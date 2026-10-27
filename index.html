@@ -470,8 +470,8 @@ window.BODY_IMG="data:image/webp;base64,UklGRgiwAABXRUJQVlA4WAoAAAAQAAAAZwEA9wMA
 'use strict';
 /* ---------- Grundlagen ---------- */
 const $app = document.getElementById('app');
-const SCHEMA = 7;
-const APP_VERSION = '5.1';
+const SCHEMA = 8;
+const APP_VERSION = '5.2';
 const MUSCLES = ['Brust','Vordere Schulter','Seitliche Schulter','Hintere Schulter','Trizeps','Latissimus','Oberer Rücken','Trapez','Unterer Rücken','Bizeps','Unterarme','Bauch','Schräge Bauchmuskeln','Quadrizeps','Beinbeuger','Gesäß','Adduktoren','Waden'];
 const V1_MUSCLES = ['Brust','Rücken','Schultern','Bizeps','Trizeps','Unterarme','Quadrizeps','Beinbeuger','Gesäß','Waden','Bauch','Ganzkörper'];
 const AREAS = ['Alle','Brust','Schultern','Rücken','Arme','Beine','Bauch','Körpergewicht'];
@@ -568,6 +568,14 @@ function migrate(s) {
   }
   for (const d of Object.values(s.days)) { if (!Array.isArray(d.exercises)) d.exercises = []; if (!('note' in d)) d.note = ''; if (!d.plans || typeof d.plans !== 'object') d.plans = {}; }
   for (const ex of Object.values(s.exercises)) { if (!('step' in ex)) ex.step = null; if (!('plan' in ex)) ex.plan = null; }
+  // Ab Version 8 gehören Ziele zu Übung und Tag. Ein altes Ziel an der Übung wandert in alle Tage, in denen sie vorkommt.
+  for (const d of Object.values(s.days)) { if (!d.goals || typeof d.goals !== 'object') d.goals = {}; }
+  for (const ex of Object.values(s.exercises)) {
+    if (!ex.goal) continue;
+    const ds = Object.values(s.days).filter(d => d.exercises.includes(ex.id)); if (!ds.length) continue;
+    ds.forEach(d => { if (!d.goals[ex.id]) d.goals[ex.id] = JSON.parse(JSON.stringify(ex.goal)); });
+    ex.goal = null;
+  }
   if (!Array.isArray(s.body)) s.body = [];
   if (!s.plans.some(p => p.id === s.currentPlan)) s.currentPlan = s.plans.length ? s.plans[0].id : null;
   s.sessions.forEach(x => { if (!Array.isArray(x.photos)) x.photos = []; });
@@ -671,8 +679,9 @@ function exHistory(exId, limit, includeActive = false, dayId = null) {
   }
   return out;
 }
-// "Last" kommt bevorzugt aus demselben Tag (z. B. schwere Klimmzüge bei Pull, leichte bei Calisthenics)
-const lastPerformance = (exId, dayId) => (dayId && exHistory(exId, 1, false, dayId)[0]) || exHistory(exId, 1)[0] || null;
+// Jede Übung hat pro Tag ihren eigenen Verlauf (z. B. schwere Klimmzüge bei Pull, leichte bei Calisthenics).
+// "Last" kommt nur aus demselben Tag. Ohne Tag (dayId null) zählen alle Einheiten.
+const lastPerformance = (exId, dayId) => exHistory(exId, 1, false, dayId || null)[0] || null;
 // "So trainiere ich das": Angabe für diesen Tag, sonst die allgemeine
 const effPlan = (ex, dayId) => (ex && dayId && S.days[dayId] && S.days[dayId].plans && S.days[dayId].plans[ex.id]) || (ex && ex.plan) || null;
 const daysWith = exId => Object.values(S.days).filter(d => d.exercises.includes(exId));
@@ -756,9 +765,17 @@ function goalText(g, type) {
   if (g.reps == null) return w;
   return `${g.sets ? g.sets + ' × ' : ''}${g.reps} Wdh${w ? ' bei ' + w : ''}`;
 }
-function goalEval(ex) {
-  const g = ex.goal; if (!g) return null;
-  const b = exHistory(ex.id, 1, true)[0] || null;
+// Ziele gehören zu Übung und Tag: days[dayId].goals[exId]
+const goalOf = (ex, dayId) => (ex && dayId && S.days[dayId] && S.days[dayId].goals && S.days[dayId].goals[ex.id]) || null;
+function setGoal(exId, dayId, g) {
+  const d = S.days[dayId]; if (!d) return false;
+  if (!d.goals) d.goals = {};
+  if (g) d.goals[exId] = g; else delete d.goals[exId];
+  return true;
+}
+function goalEval(ex, dayId) {
+  const g = goalOf(ex, dayId); if (!g) return null;
+  const b = exHistory(ex.id, 1, true, dayId)[0] || null;
   if (!b) return { g, basis: null, pct: 0, ready: false };
   const val = s => s.w || 0;
   if (g.reps == null) {
@@ -915,43 +932,10 @@ function weekReport(key) {
   return { key, to, xs, sets, vol, mins: Math.round(mins), prog, top, prs };
 }
 
-/* ---------- Stärkeprofil ----------
-   Kraftstandards für Männer nach Körpergewicht (lb), aus den Community-Daten von Strength Level.
-   Spalten: Körpergewicht, Einsteiger, Anfänger, Fortgeschritten, Sehr fortgeschritten, Elite.
-   Gewichtsübungen: geschätztes Maximalgewicht (1RM). Klimmzüge und Dips: Wiederholungen mit Körpergewicht. */
-const LB = 2.20462;
-const STD = {
-  bench: { name: 'Bankdrücken', kind: 'load', push: true, rows: [[120,70,102,142,189,240],[130,80,114,156,205,258],[140,89,125,170,221,276],[150,99,137,183,236,292],[160,108,148,196,250,308],[170,118,158,208,264,324],[180,127,169,220,277,339],[190,136,179,231,290,353],[200,144,189,243,303,367],[210,153,199,254,315,380],[220,161,208,265,327,394],[230,169,218,275,339,406],[240,177,227,285,350,419],[250,185,236,295,361,431],[260,193,244,305,372,442]] },
-  squat: { name: 'Kniebeuge', kind: 'load', legs: true, rows: [[120,92,136,192,257,327],[130,106,153,211,279,352],[140,119,168,229,300,376],[150,132,184,247,320,399],[160,145,199,265,340,421],[170,157,213,282,359,442],[180,169,228,298,377,462],[190,182,242,314,395,482],[200,193,255,329,413,501],[210,205,269,344,430,520],[220,216,281,359,446,538],[230,227,294,373,462,555],[240,238,307,387,477,572],[250,249,319,401,493,589],[260,260,331,414,507,605]] },
-  deadlift: { name: 'Kreuzheben', kind: 'load', legs: true, rows: [[120,116,168,233,308,389],[130,131,186,254,332,416],[140,146,203,274,355,442],[150,160,220,293,377,466],[160,174,236,312,398,490],[170,188,252,330,419,513],[180,201,268,348,438,535],[190,214,283,365,458,556],[200,227,297,382,476,576],[210,239,312,398,494,596],[220,252,326,413,512,615],[230,263,339,429,529,634],[240,275,352,443,545,652],[250,287,365,458,561,669],[260,298,378,472,577,686]] },
-  ohp: { name: 'Schulterdrücken', kind: 'load', push: true, rows: [[120,39,61,89,123,160],[130,45,68,98,133,172],[140,51,76,107,144,183],[150,57,83,116,154,195],[160,63,90,124,163,206],[170,69,97,132,172,216],[180,75,104,140,181,226],[190,80,111,148,190,236],[200,86,117,155,199,245],[210,91,123,163,207,254],[220,97,130,170,215,263],[230,102,136,177,223,272],[240,107,142,183,230,280],[250,112,147,190,238,288],[260,117,153,196,245,296]] },
-  pullup: { name: 'Klimmzüge', kind: 'reps', pull: true, rows: [[120,0,7,14,24,34],[130,0,7,14,23,33],[140,0,7,14,23,32],[150,0,7,14,22,31],[160,0,7,14,22,30],[170,0,7,13,21,29],[180,1,7,13,21,28],[190,1,7,13,20,28],[200,1,7,12,19,27],[210,1,7,12,19,26],[220,0,6,11,18,25],[230,0,6,11,18,24],[240,0,6,11,17,24],[250,0,6,10,16,23],[260,0,5,10,16,22]] },
-  dips: { name: 'Dips', kind: 'reps', push: true, rows: [[110,0,8,19,33,47],[120,0,9,20,33,47],[130,1,9,20,33,46],[140,1,10,20,32,45],[150,2,10,20,32,44],[160,3,10,20,32,43],[170,3,10,20,31,43],[180,4,10,20,31,42],[190,4,10,20,30,41],[200,4,10,19,29,40]] }
-};
-const STD_BY_LIB = { 'bankdruecken': 'bench', 'kniebeuge': 'squat', 'kreuzheben': 'deadlift', 'schulterdruecken-lh': 'ohp', 'klimmzuege': 'pullup', 'dips-brust': 'dips', 'dips-trizeps': 'dips', 'ring-dips': null };
-const LEVELS = ['Unter Einsteiger', 'Einsteiger', 'Anfänger', 'Fortgeschritten', 'Sehr fortgeschritten', 'Elite'];
-const PCT = [0, 5, 20, 50, 80, 95];
-function stdAt(key, bwKg) {
-  const rows = STD[key].rows, b = bwKg * LB;
-  if (b <= rows[0][0]) return rows[0].slice(1);
-  if (b >= rows[rows.length - 1][0]) return rows[rows.length - 1].slice(1);
-  for (let i = 0; i < rows.length - 1; i++) {
-    const a = rows[i], c = rows[i + 1];
-    if (b >= a[0] && b <= c[0]) { const t = (b - a[0]) / (c[0] - a[0]); return a.slice(1).map((v, j) => v + t * (c[j + 1] - v)); }
-  }
-}
-// Stufe als Kommazahl: 1 = Einsteiger ... 5 = Elite
-function levelScore(v, s) {
-  if (v < s[0]) return Math.max(0, 1 - (s[0] - v) / Math.max(1, s[1] - s[0]));
-  for (let i = 0; i < 4; i++) if (v < s[i + 1]) return i + 1 + (v - s[i]) / (s[i + 1] - s[i]);
-  return Math.min(5.9, 5 + (v - s[4]) / Math.max(1, s[4] - s[3]));
-}
-const levelName = sc => LEVELS[Math.max(0, Math.min(5, Math.floor(sc)))];
-function percentile(sc) {
-  if (sc >= 5) return Math.min(99, Math.round(95 + (sc - 5) * 4));
-  const i = Math.floor(sc), t = sc - i;
-  return Math.round(PCT[i] + t * (PCT[i + 1] - PCT[i]));
-}
+/* ---------- Kraftverlauf ----------
+   Geschätztes Maximum (Epley) je Einheit. Klimmzüge und Dips werden als Wdh mit Körpergewicht umgerechnet.
+   Alles wird je Übung und Tag gerechnet, es gibt keine Stufen oder Vergleiche mit anderen Nutzern. */
+const REPS_LIBS = new Set(['klimmzuege', 'dips-brust', 'dips-trizeps']);
 // Geschätztes Maximum nach Epley, nur aus Sätzen mit 1 bis 12 Wdh
 const e1rm = (w, r) => r === 1 ? w : w * (1 + r / 30);
 function setLoad(ex, s, bw) { return ex.type === 'bw' ? (bw ? bw + (s.w || 0) : null) : (s.w || 0); }
@@ -983,40 +967,18 @@ function strengthSeries(ex, dayId = null) {
   const list = S.sessions.filter(x => x.end != null && (!dayId || x.dayId === dayId)).sort((a, b) => a.start - b.start);
   for (const x of list) {
     const sets = doneSets(x.entries[ex.id]); if (!sets.length) continue;
-    const v = ex.type === 'bw' && STD_BY_LIB[ex.lib] ? equivReps(ex, sets, x.date) : sessionE1rm(ex, sets, x.date);
+    const v = ex.type === 'bw' && REPS_LIBS.has(ex.lib) ? equivReps(ex, sets, x.date) : sessionE1rm(ex, sets, x.date);
     if (v != null) out.push({ date: x.date, v, dayId: x.dayId });
   }
   return out;
 }
-const metricUnit = ex => ex.type === 'bw' && STD_BY_LIB[ex.lib] ? 'Wdh' : 'kg';
+const metricUnit = ex => ex.type === 'bw' && REPS_LIBS.has(ex.lib) ? 'Wdh' : 'kg';
 // Stagnation: in den letzten drei Einheiten desselben Tages kein neuer Bestwert
 function stagnation(ex, dayId) {
   const sr = strengthSeries(ex, dayId);
   if (sr.length < 4) return null;
   const before = Math.max(...sr.slice(0, -3).map(p => p.v)), recent = Math.max(...sr.slice(-3).map(p => p.v));
   return recent <= before * 1.005 ? { best: before, recent } : null;
-}
-function strengthProfile() {
-  const bw = latestBody('weight');
-  const out = [];
-  if (!bw) return { bw: null, lifts: out };
-  const seen = new Set();
-  for (const ex of Object.values(S.exercises)) {
-    const key = STD_BY_LIB[ex.lib]; if (!key || seen.has(key)) continue;
-    const h = exHistory(ex.id, 999, true); if (!h.length) continue;
-    const s = stdAt(key, bw.weight);
-    let val = null, best = null, date = null;
-    for (const x of h.slice(0, 12)) {
-      const v = STD[key].kind === 'reps' ? equivReps(ex, x.sets, x.date) : sessionE1rm(ex, x.sets, x.date);
-      if (v != null && (best == null || v > best)) { best = v; date = x.date; }
-    }
-    if (best == null) continue;
-    val = STD[key].kind === 'reps' ? best : best * LB;
-    const sc = levelScore(val, s);
-    seen.add(key);
-    out.push({ key, ex, sc, best, date, std: s, rel: STD[key].kind === 'load' ? best / bw.weight : null });
-  }
-  return { bw, lifts: out.sort((a, b) => b.sc - a.sc) };
 }
 
 /* ---------- Persönliche Rekorde ----------
@@ -1039,11 +1001,11 @@ function recordsOf(ex, sessions) {
   }
   return R;
 }
-// Der eine Rekord-Satz einer Einheit (oder null). Erst ab der dritten Einheit mit dieser Übung.
+// Der eine Rekord-Satz einer Einheit (oder null). Erst ab der dritten Einheit mit dieser Übung an diesem Tag.
 function sessionPR(ex, x) {
   const rows = x.entries[ex.id] || [];
   if (!rows.some(s => s.done)) return null;
-  const prev = S.sessions.filter(y => y !== x && y.end != null && y.start < x.start && doneSets(y.entries[ex.id]).length);
+  const prev = S.sessions.filter(y => y !== x && y.end != null && y.start < x.start && y.dayId === x.dayId && doneSets(y.entries[ex.id]).length);
   if (prev.length < 2) return null;
   const R = recordsOf(ex, prev);
   let best = null;
@@ -1325,14 +1287,14 @@ const Views = {
     const idx = d ? d.exercises.indexOf(id) : -1;
     const nextId = d && idx > -1 && idx < d.exercises.length - 1 ? d.exercises[idx + 1] : null;
     const next = nextId ? S.exercises[nextId] : null;
-    const hist = exHistory(id, 12);
+    const hist = exHistory(id, 12, false, day || null);
     let hero;
     if (ex.image) hero = `<div class="hero"><img data-img="${esc(ex.image)}" data-ex="${id}" alt="" ${ex.imgRatio ? `style="aspect-ratio:${ex.imgRatio}"` : ''}></div>`;
     else if (l && l.img) hero = `<div class="hero">${netImg(l.img + '/0.jpg', 'lib-hero', "this.closest('.hero').remove()")}</div>`;
     else hero = `<button class="hero-empty" data-a="ex-edit" data-id="${id}">${ICON.img}Bild hinzufügen</button>`;
     const tags = ex.prim.map(m => `<span class="tag">${esc(m)}</span>`).join('') + ex.sec.map(m => `<span class="tag sec">${esc(m)}</span>`).join('') + (ex.type === 'bw' ? '<span class="tag">Körpergewicht</span>' : '');
     const maxSets = Math.max(0, ...hist.map(h => h.sets.length));
-    const multi = new Set(hist.map(h => h.dayId)).size > 1 || daysWith(id).length > 1;
+    const multi = !day && (new Set(hist.map(h => h.dayId)).size > 1 || daysWith(id).length > 1);
     const grid = hist.length ? `<div class="hgrid-wrap"><table class="hgrid"><thead><tr><th>Datum</th>${Array.from({ length: maxSets }, (_, i) => `<th>Satz ${i + 1}</th>`).join('')}</tr></thead><tbody>${hist.map(h => `<tr data-a="open-session" data-id="${h.id}"><td class="hdate">${esc(rel(h.date))}${multi && S.days[h.dayId] ? `<span class="hday">${esc(S.days[h.dayId].name)}</span>` : ''}</td>${Array.from({ length: maxSets }, (_, i) => { const r = h.sets[i]; return `<td>${r ? esc(setStr(r, ex.type)) + (r.drops || []).map(x => `<span class="dr">↘ ${esc(setStr(x, ex.type))}</span>`).join('') : ''}</td>`; }).join('')}</tr>`).join('')}</tbody></table></div>` : '';
     return `${bar({ back: d ? d.name : 'Zurück', right: `<button class="bar-btn" data-a="ex-edit" data-id="${id}">Bearbeiten</button>` })}
       ${hero}
@@ -1340,13 +1302,13 @@ const Views = {
       <div class="tags">${tags}</div>
       ${planLine(ex, day)}
       ${strengthLine(ex, day)}
-      <div id="goalbox">${goalHtml(ex)}</div>
+      <div id="goalbox">${goalHtml(ex, day)}</div>
       <div id="sets">${setsBlock(ex, day)}</div>
       ${fold('note:' + id, 'Notiz', `<textarea class="field note-field" data-field="note-ex" data-id="${id}" placeholder="z. B. Sitzhöhe 4, enger Griff">${esc(ex.note)}</textarea>`, !!(ex.note || '').trim())}
       ${ex.desc ? fold('desc:' + id, 'Beschreibung', `<div class="fold-text">${esc(ex.desc)}</div>`) : ''}
       ${l ? fold('info:' + id, 'Infos zur Übung', infoHtml(l, ex.name)) : ''}
-      ${(() => { const sr = strengthSeries(ex); return sr.length >= 2 ? fold('kraft:' + id, 'Kraftverlauf', `<p class="hint" style="margin:0 0 4px">${metricUnit(ex) === 'kg' ? 'Geschätztes Maximalgewicht je Einheit' : 'Wdh mit Körpergewicht, die deine beste Leistung je Einheit entspricht'}.</p>${chartSvg(sr.map(p => Math.round(p.v * 10) / 10), sr.map(p => p.date))}`) : ''; })()}
-      ${recordsHtml(ex) ? fold('rec:' + id, 'Rekorde', `<div id="recbox">${recordsHtml(ex)}</div>`) : ''}
+      ${(() => { const sr = strengthSeries(ex, day || null); return sr.length >= 2 ? fold('kraft:' + id, 'Kraftverlauf', `<p class="hint" style="margin:0 0 4px">${metricUnit(ex) === 'kg' ? 'Geschätztes Maximalgewicht je Einheit' : 'Wdh mit Körpergewicht, die deine beste Leistung je Einheit entspricht'}.</p>${chartSvg(sr.map(p => Math.round(p.v * 10) / 10), sr.map(p => p.date))}`) : ''; })()}
+      ${recordsHtml(ex, day) ? fold('rec:' + id, 'Rekorde', `<div id="recbox">${recordsHtml(ex, day)}</div>`) : ''}
       ${hist.length ? fold('hist:' + id, `Verlauf (${hist.length} ${hist.length === 1 ? 'Einheit' : 'Einheiten'})`, grid) : ''}
       ${next ? `<button class="next" data-a="ex-next" data-id="${nextId}"><span><small>Nächste Übung</small><strong>${esc(next.name)}</strong></span>${ICON.chev.replace('i chev', 'i')}</button>` : ''}`;
   },
@@ -1567,8 +1529,8 @@ function bodyModel(e) {
     ${label('calf', 'Wade', 'cm', 0, 391, 'r', [197.8, 229.2])}
   </svg>`;
 }
-function recordsHtml(ex) {
-  const R = recordsOf(ex, S.sessions.filter(y => doneSets(y.entries[ex.id]).length));
+function recordsHtml(ex, dayId) {
+  const R = recordsOf(ex, S.sessions.filter(y => (!dayId || y.dayId === dayId) && doneSets(y.entries[ex.id]).length));
   const d = ref => esc(rel(ref.date));
   const rows = [];
   if (R.hold) rows.push(`<tr><td>Längste Haltezeit</td><td>${R.hold.r} s</td><td>${d(R.hold)}</td></tr>`);
@@ -1577,16 +1539,11 @@ function recordsHtml(ex) {
   if (R.e1) rows.push(`<tr><td>Bestes geschätztes Maximum</td><td>${fmt(Math.round(R.e1.v * 2) / 2)} kg</td><td>${d(R.e1)}</td></tr>`);
   REP_STEPS.forEach(k => { const p = R.rm[k]; if (p && (ex.type !== 'bw' || p.w)) rows.push(`<tr><td>${k} Wdh</td><td>${esc(wUnit(p.w || 0, ex.type))}</td><td>${d(p)}</td></tr>`); });
   if (!rows.length) return '';
-  return `<table class="rec-table"><tbody>${rows.join('')}</tbody></table><p class="hint" style="margin-top:8px">Wdh-Rekorde: das schwerste Gewicht aus einem Satz mit mindestens so vielen Wdh. Drops zählen nicht.</p>`;
+  return `<table class="rec-table"><tbody>${rows.join('')}</tbody></table><p class="hint" style="margin-top:8px">Wdh-Rekorde: das schwerste Gewicht aus einem Satz mit mindestens so vielen Wdh. Drops zählen nicht.${dayId && S.days[dayId] ? ` Es zählen nur Einheiten von ${esc(S.days[dayId].name)}.` : ''}</p>`;
 }
 function strengthLine(ex, dayId) {
-  const parts = [];
-  const key = STD_BY_LIB[ex.lib], bw = latestBody('weight');
-  if (key && bw) {
-    const l = strengthProfile().lifts.find(x => x.ex === ex);
-    if (l) parts.push(`<b>${esc(levelName(l.sc))}</b>, stärker als etwa ${percentile(l.sc)} % der Lifter auf Strength Level`);
-  }
-  const sr = strengthSeries(ex);
+  const parts = [], bw = latestBody('weight');
+  const sr = strengthSeries(ex, dayId || null);
   if (sr.length && metricUnit(ex) === 'kg') {
     const best = Math.max(...sr.slice(-12).map(p => p.v));
     parts.push(`Geschätztes Maximum ${fmt(Math.round(best * 2) / 2)} kg${bw && ex.type !== 'bw' ? `, das ${fmt(Math.round(best / bw.weight * 100) / 100)}-fache deines Körpergewichts` : ''}`);
@@ -1602,62 +1559,30 @@ function sparkline(vals) {
   return `<svg class="spark" viewBox="0 0 ${W} ${H}" aria-hidden="true"><polyline points="${pts}" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"/></svg>`;
 }
 function strengthHtml() {
-  const prof = strengthProfile();
-  let html = '<p class="lead">Wie stark du bist, im Verhältnis zu deinem Körpergewicht und zu deinen anderen Übungen. Aktualisiert sich nach jeder Einheit.</p>';
-  if (!prof.bw) html += `<div class="note"><b>Dafür braucht die App dein Körpergewicht.</b>Ohne Gewicht siehst du unten nur den Kraftverlauf deiner Übungen.</div><button class="btn btn-primary" data-a="go" data-view="body">Gewicht eintragen</button>`;
-  const L = prof.lifts;
-  if (L.length) {
-    const avg = L.reduce((a, l) => a + l.sc, 0) / L.length;
-    const weak = L.length >= 2 ? L.filter(l => l.sc < avg - 0.6) : [];
-    const mean = arr => arr.length ? arr.reduce((a, l) => a + l.sc, 0) / arr.length : null;
-    const push = mean(L.filter(l => STD[l.key].push)), pull = mean(L.filter(l => STD[l.key].pull));
-    const legs = mean(L.filter(l => STD[l.key].legs)), upper = mean(L.filter(l => !STD[l.key].legs));
-    const tips = [];
-    if (L.length >= 2) tips.push(`Am stärksten bist du bei ${esc(L[0].ex.name)} (${esc(levelName(L[0].sc))}).`);
-    if (weak.length) tips.push(`Im Vergleich hinkt ${esc(weak.map(l => `${l.ex.name} (${levelName(l.sc)})`).join(' und '))} hinterher.`);
-    if (push != null && pull != null && push - pull > 0.75) tips.push('Ziehen liegt deutlich hinter Drücken. Mehr Fokus auf Klimmzüge und Rudern gleicht das aus.');
-    if (push != null && pull != null && pull - push > 0.75) tips.push('Drücken liegt deutlich hinter Ziehen.');
-    if (legs != null && upper != null && upper - legs > 1) tips.push('Deine Beine liegen deutlich hinter dem Oberkörper.');
-    if (legs != null && upper != null && legs - upper > 1) tips.push('Dein Oberkörper liegt deutlich hinter den Beinen.');
-    if (L.length >= 2 && !weak.length && tips.length === 1) tips.push('Deine Übungen liegen ausgeglichen nah beieinander.');
-    html += `<div class="group">Stärkeprofil bei ${fmt(prof.bw.weight)} kg Körpergewicht</div>`;
-    if (tips.length) html += `<div class="note">${tips.map((t, i) => i ? `<span>${t}</span>` : `<b>${t}</b>`).join('')}</div>`;
-    html += L.map(l => {
-      const lvl = Math.floor(l.sc), nextIdx = Math.min(4, Math.max(0, lvl));
-      const reps = STD[l.key].kind === 'reps';
-      const val = reps ? `Entspricht etwa ${Math.round(l.best)} Wdh mit Körpergewicht` : `Geschätztes Maximum ${fmt(Math.round(l.best * 2) / 2)} kg, das ${fmt(Math.round(l.rel * 100) / 100)}-fache deines Körpergewichts`;
-      const next = lvl < 5 ? (reps ? `${Math.ceil(l.std[nextIdx])} Wdh` : `${fmt(Math.round(l.std[nextIdx] / LB * 2) / 2)} kg`) : '';
-      return `<div class="lvl-row"><div class="bar-head"><span>${esc(l.ex.name)}</span><span class="badge lvl">${esc(levelName(l.sc))}</span></div>
-        <div class="track lvl-track">${[1, 2, 3, 4, 5].map(t => `<span class="tick" style="left:${t / 6 * 100}%"></span>`).join('')}<div class="fill" style="width:${Math.min(100, l.sc / 6 * 100)}%"></div></div>
-        <div class="lvl-scale"><span>Einst.</span><span>Anf.</span><span>Fortg.</span><span>Sehr f.</span><span>Elite</span></div>
-        <p class="ana-note">${esc(val)}, stärker als etwa ${percentile(l.sc)} %.${next ? ` Nächste Stufe ${esc(LEVELS[nextIdx + 1])} ab ${esc(next)}.` : ''}</p></div>`;
-    }).join('');
-  } else if (prof.bw) {
-    html += '<p class="muted">Sobald du Bankdrücken, Kniebeuge, Kreuzheben, Schulterdrücken, Klimmzüge oder Dips aus der Bibliothek trainierst, erscheint hier dein Stärkeprofil.</p>';
+  let html = '<p class="lead">Kraftverlauf und Rekorde je Übung und Tag. Dieselbe Übung an zwei Tagen wird getrennt gerechnet. Aktualisiert sich nach jeder Einheit.</p>';
+  const pairs = new Map();
+  for (const x of S.sessions) {
+    if (x.end == null) continue;
+    for (const exId of Object.keys(x.entries)) if (doneSets(x.entries[exId]).length) pairs.set(x.dayId + '|' + exId, [x.dayId, exId]);
   }
-  const series = Object.values(S.exercises).map(ex => ({ ex, sr: strengthSeries(ex) })).filter(x => x.sr.length >= 2)
+  const series = [...pairs.values()].map(([dayId, exId]) => ({ ex: S.exercises[exId], day: S.days[dayId] })).filter(t => t.ex && t.day)
+    .map(t => ({ ...t, sr: strengthSeries(t.ex, t.day.id) })).filter(t => t.sr.length >= 2)
     .sort((a, b) => (b.sr[b.sr.length - 1].date > a.sr[a.sr.length - 1].date ? 1 : -1));
   if (series.length) {
-    html += '<div class="group">Kraftverlauf</div><div class="rows">' + series.slice(0, 20).map(({ ex, sr }) => {
+    html += '<div class="group">Kraftverlauf</div><div class="rows">' + series.slice(0, 30).map(({ ex, day, sr }) => {
       const u = metricUnit(ex), last = sr[sr.length - 1].v, first = sr[0].v;
       const diff = u === 'kg' ? Math.round((last - first) * 2) / 2 : Math.round(last - first);
-      const stag = daysWith(ex.id).some(d => stagnation(ex, d.id));
+      const stag = !!stagnation(ex, day.id);
       const cur = u === 'kg' ? `${fmt(Math.round(last * 2) / 2)} kg` : `${Math.round(last)} Wdh`;
-      const day = Object.values(S.days).find(d => d.exercises.includes(ex.id));
-      return `<button class="row" ${day ? `data-a="open-ex" data-id="${ex.id}" data-day="${day.id}"` : ''}><div class="row-main"><div class="row-title">${esc(ex.name)}</div><div class="row-sub">${stag ? '<span class="stag">Stagniert</span> ' : ''}${esc(cur)}, ${diff > 0 ? '+' : ''}${esc(fmt(diff))} ${u} seit ${esc(rel(sr[0].date))}</div></div>${sparkline(sr.map(p => p.v))}</button>`;
+      return `<button class="row" data-a="open-ex" data-id="${ex.id}" data-day="${day.id}"><div class="row-main"><div class="row-title">${esc(ex.name)}, ${esc(day.name)}</div><div class="row-sub">${stag ? '<span class="stag">Stagniert</span> ' : ''}${esc(cur)}, ${diff > 0 ? '+' : ''}${esc(fmt(diff))} ${u} seit ${esc(rel(sr[0].date))}</div></div>${sparkline(sr.map(p => p.v))}</button>`;
     }).join('') + '</div>';
+  } else {
+    html += '<p class="muted">Sobald du eine Übung an einem Tag mindestens zweimal abgeschlossen hast, erscheint hier ihr Kraftverlauf.</p>';
   }
   const prs = latestPRs(10);
-  if (prs.length) html += '<div class="group">Neueste Rekorde</div><div class="rows">' + prs.map(({ ex, x, p }) => `<button class="row" data-a="open-session" data-id="${x.id}">${x.photos && x.photos.length ? `<div class="thumb"><img data-img="${esc(x.photos[0])}" alt=""></div>` : '<div class="thumb pr-thumb">PR</div>'}<div class="row-main"><div class="row-title">${esc(ex.name)}</div><div class="row-sub">${esc(p.label)}, ${esc(rel(x.date))}</div></div>${ICON.chev}</button>`).join('') + '</div>';
-  html += `<p class="hint">Standards: Strength Level, ausgewertet aus Millionen Lifts der Community, Werte für Männer nach Körpergewicht. „Fortgeschritten“ heißt stärker als die Hälfte dieser Nutzer, also trainierender Menschen und nicht der Gesamtbevölkerung. Das Maximum wird mit der Epley-Formel nur aus Sätzen bis 12 Wdh geschätzt, darüber wird es ungenau. Bei Klimmzügen und Dips rechnet die App Zusatzgewicht in Wdh mit Körpergewicht um.</p>`;
+  if (prs.length) html += '<div class="group">Neueste Rekorde</div><div class="rows">' + prs.map(({ ex, x, p }) => `<button class="row" data-a="open-session" data-id="${x.id}">${x.photos && x.photos.length ? `<div class="thumb"><img data-img="${esc(x.photos[0])}" alt=""></div>` : '<div class="thumb pr-thumb">PR</div>'}<div class="row-main"><div class="row-title">${esc(ex.name)}${S.days[x.dayId] ? ', ' + esc(S.days[x.dayId].name) : ''}</div><div class="row-sub">${esc(p.label)}, ${esc(rel(x.date))}</div></div>${ICON.chev}</button>`).join('') + '</div>';
+  html += `<p class="hint">Das Maximum wird mit der Epley-Formel nur aus Sätzen bis 12 Wdh geschätzt, darüber wird es ungenau. Bei Klimmzügen und Dips rechnet die App Zusatzgewicht in Wdh mit Körpergewicht um.</p>`;
   return html;
-}
-function relStrength(ex) {
-  if (ex.type === 'bw') return '';
-  const h = exHistory(ex.id, 20, true); if (!h.length) return '';
-  const b = latestBody('weight'); if (!b) return '';
-  const best = bestSet(h.flatMap(x => x.sets)); if (!best.w) return '';
-  return `<p class="relstr">Bester Satz ${esc(setStr(best, ex.type))}, das ist das ${fmt(Math.round(best.w / b.weight * 100) / 100)}-fache deines Körpergewichts.</p>`;
 }
 function chartSvg(vals, dates) {
   if (vals.length < 2) return '<p class="hint">Ab zwei Einträgen siehst du hier den Verlauf.</p>';
@@ -1696,9 +1621,10 @@ function planAnalysisHtml(planId) {
     ${an.missing.length ? `<p class="hint">Für ${an.missing.length} ${an.missing.length === 1 ? 'Übung' : 'Übungen'} fehlt die Satzangabe, die App schätzt sie aus deiner letzten Einheit oder mit 3 Sätzen: ${esc(an.missing.map(id => S.exercises[id].name).join(', '))}. Trag sie in der Übung unter „Sätze und Wdh-Bereich festlegen“ ein.</p>` : ''}
     <p class="hint">Richtwerte: Volume Landmarks von Renaissance Periodization für fortgeschrittene Hobbysportler. Das sind Erfahrungswerte aus dem Coaching, keine exakten Studienwerte. Gezählt werden nur direkte Sätze, die indirekte Arbeit ist in den Werten schon eingerechnet. Für Muskelaufbau wirken 5 bis 30 Wdh pro Satz ähnlich, solange du nah ans Muskelversagen gehst.</p>`;
 }
-function goalHtml(ex) {
-  if (!ex.goal) return `<button class="goal-add" data-a="goal-open">${ICON.flag}Ziel setzen</button>`;
-  const e = goalEval(ex), g = ex.goal;
+function goalHtml(ex, dayId) {
+  const goal = goalOf(ex, dayId);
+  if (!goal) return `<button class="goal-add" data-a="goal-open">${ICON.flag}Ziel setzen</button>`;
+  const e = goalEval(ex, dayId), g = goal;
   let action = '';
   if (e.ready) {
     if (g.weight != null && g.step) action = `<button class="btn btn-primary" data-a="goal-step">Nächstes Ziel: ${esc(wUnit(Math.round((g.weight + g.step) * 100) / 100, ex.type))}</button>`;
@@ -1875,11 +1801,12 @@ function openDayChooser(libId) {
     return `<button class="row" data-a="lib-add-day" data-id="${libId}" data-day="${dId}"><div class="row-main"><div class="row-title">${esc(d.name)}</div><div class="row-sub">${d.exercises.length} ${d.exercises.length === 1 ? 'Übung' : 'Übungen'}</div></div>${ICON.plus}</button>`;
   }).join('')}</div>`).join('')}<button class="btn" data-a="sheet-close">Abbrechen</button>`);
 }
-function openGoal(ex) {
-  const g = ex.goal || {};
+function openGoal(ex, dayId) {
+  const g = goalOf(ex, dayId) || {};
+  const dn = S.days[dayId] ? S.days[dayId].name : '';
   const wl = ex.type === 'bw' ? 'Zusatzgewicht (kg)' : 'Gewicht (kg)';
   openSheet(`<div class="sheet-title">Ziel für ${esc(ex.name)}</div>
-    <p class="sheet-text">Alles ist optional. Trag nur ein, was du verfolgen willst. Mit Steigerung schlägt die App das nächste Gewicht vor, sobald du das Ziel in allen Sätzen schaffst.</p>
+    <p class="sheet-text">${dn ? `Das Ziel gilt nur für ${esc(dn)}. ` : ''}Alles ist optional. Trag nur ein, was du verfolgen willst. Mit Steigerung schlägt die App das nächste Gewicht vor, sobald du das Ziel in allen Sätzen schaffst.</p>
     <div class="goal-grid">
       <label>Sätze<input class="field" id="g-sets" inputmode="numeric" value="${g.sets ?? ''}" placeholder="z. B. 3"></label>
       <label>Wiederholungen<input class="field" id="g-reps" inputmode="numeric" value="${g.reps ?? ''}" placeholder="z. B. 12"></label>
@@ -1887,7 +1814,7 @@ function openGoal(ex) {
       <label>Steigerung (kg)<input class="field" id="g-step" inputmode="decimal" value="${fmt(g.step)}" placeholder="z. B. 2,5"></label>
     </div>
     <button class="btn btn-primary" data-a="goal-save">Ziel sichern</button>
-    ${ex.goal ? '<button class="btn btn-danger" data-a="goal-del">Ziel entfernen</button>' : ''}
+    ${goalOf(ex, dayId) ? '<button class="btn btn-danger" data-a="goal-del">Ziel entfernen</button>' : ''}
     <button class="btn" data-a="sheet-close">Abbrechen</button>`);
 }
 async function addLibToDay(libId, dayId) {
@@ -1939,8 +1866,8 @@ function refreshSets() {
   const c = exCtx(); if (!c) return rerender();
   const ex = S.exercises[c.id], box = document.getElementById('sets'); if (!ex || !box) return rerender();
   box.innerHTML = setsBlock(ex, c.day);
-  const g = document.getElementById('goalbox'); if (g) g.innerHTML = goalHtml(ex);
-  const rb = document.getElementById('recbox'); if (rb) rb.innerHTML = recordsHtml(ex);
+  const g = document.getElementById('goalbox'); if (g) g.innerHTML = goalHtml(ex, c.day);
+  const rb = document.getElementById('recbox'); if (rb) rb.innerHTML = recordsHtml(ex, c.day);
 }
 async function startSession(dayId) {
   const cur = activeSession();
@@ -2079,7 +2006,7 @@ const A = {
   'lib-add': el => openDayChooser(el.dataset.id),
   'lib-add-day': el => { const { id, day } = el.dataset; closeSheet(); addLibToDay(id, day); },
 
-  'goal-open': () => { const c = exCtx(); if (c) openGoal(S.exercises[c.id]); },
+  'goal-open': () => { const c = exCtx(); if (c) openGoal(S.exercises[c.id], c.day); },
   'goal-save': () => {
     const c = exCtx(); if (!c || !sheetEl) return;
     const ex = S.exercises[c.id];
@@ -2088,12 +2015,13 @@ const A = {
     const g = { sets: int(v('#g-sets')), reps: int(v('#g-reps')), weight: v('#g-w'), step: v('#g-step') };
     if (g.reps == null && g.weight == null) { toast('Trag mindestens Wiederholungen oder ein Gewicht ein'); return; }
     if (g.step != null && g.step <= 0) g.step = null;
-    ex.goal = g; save(); closeSheet(); refreshSets(); toast('Ziel gesichert');
+    if (!setGoal(ex.id, c.day, g)) { toast('Ziel konnte nicht gespeichert werden'); return; }
+    save(); closeSheet(); refreshSets(); toast('Ziel gesichert');
   },
-  'goal-del': () => { const c = exCtx(); if (!c) return; S.exercises[c.id].goal = null; save(); closeSheet(); refreshSets(); toast('Ziel entfernt'); },
+  'goal-del': () => { const c = exCtx(); if (!c) return; setGoal(c.id, c.day, null); save(); closeSheet(); refreshSets(); toast('Ziel entfernt'); },
   'goal-step': () => {
     const c = exCtx(); if (!c) return;
-    const g = S.exercises[c.id].goal; if (!g || g.weight == null || !g.step) return;
+    const g = goalOf(S.exercises[c.id], c.day); if (!g || g.weight == null || !g.step) return;
     g.weight = Math.round((g.weight + g.step) * 100) / 100; save(); refreshSets(); toast('Neues Ziel übernommen');
   },
 
