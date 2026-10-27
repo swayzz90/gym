@@ -480,10 +480,15 @@ window.BODY_IMG="data:image/webp;base64,UklGRgiwAABXRUJQVlA4WAoAAAAQAAAAZwEA9wMA
 'use strict';
 /* ---------- Grundlagen ---------- */
 const $app = document.getElementById('app');
-const SCHEMA = 9;
-const APP_VERSION = '5.4';
+const SCHEMA = 10;
+const APP_VERSION = '5.5';
 // Was ist neu: kurze Zeilen pro Version, neueste zuerst. Wird nach einem Update einmal angezeigt.
 const CHANGELOG = [
+  { v: '5.5', items: [
+    'Backup-Erinnerung nach 7 Tagen. Beim Öffnen kannst du direkt ein Backup erstellen.',
+    'Vor einem Update des Datenformats legt die App automatisch eine Sicherheitskopie an.',
+    'Unter „Backup und Daten“ kannst du diesen Stand bei Bedarf wiederherstellen.'
+  ] },
   { v: '5.4', items: [
     'Trainingsziel pro Plan: Hypertrophie oder Kraft. Die Plan-Analyse passt sich an.',
     'Neue Verteilung der geplanten Sätze nach Wiederholungen: Kraft, Aufbau, Leicht.',
@@ -567,13 +572,14 @@ const Store = {
 
 let S;
 let saveTimer = null;
-function emptyState() { return { version: SCHEMA, seenVersion: APP_VERSION, plans: [], days: {}, exercises: {}, muscles: [...MUSCLES], sessions: [], body: [], profile: { height: null }, reportSeen: null, currentPlan: null, lastBackup: null }; }
+function emptyState() { return { version: SCHEMA, seenVersion: APP_VERSION, backupNagAt: null, plans: [], days: {}, exercises: {}, muscles: [...MUSCLES], sessions: [], body: [], profile: { height: null }, reportSeen: null, currentPlan: null, lastBackup: null }; }
 function migrate(s) {
   if (!s || typeof s !== 'object') return emptyState();
   const from = s.version || 1;
   const hadSeen = 'seenVersion' in s;
   s = Object.assign(emptyState(), s);
   if (!hadSeen) s.seenVersion = null;
+  if (typeof s.backupNagAt !== 'number') s.backupNagAt = null;
   if (!Array.isArray(s.plans)) s.plans = [];
   // Ab Version 9: Trainingsziel und Aufwärmsätze je Plan
   for (const p of s.plans) { p.focus = p.focus === 'kraft' ? 'kraft' : 'hyp'; p.warmup = p.warmup === true; }
@@ -790,8 +796,12 @@ function newPlan(name, dayNames) {
 function backupHint() { return S.lastBackup ? 'Letztes Backup ' + rel(dateKey(new Date(S.lastBackup))) : 'Noch kein Backup'; }
 function backupDue() {
   const has = S.sessions.some(s => Object.values(s.entries).some(x => doneSets(x).length));
-  return has && (!S.lastBackup || Date.now() - S.lastBackup > 14 * 864e5);
+  return has && (!S.lastBackup || Date.now() - S.lastBackup > 7 * 864e5);
 }
+// Erinnerung beim Öffnen: Backup älter als 7 Tage, höchstens einmal am Tag
+const backupNagDue = () => backupDue() && (!S.backupNagAt || Date.now() - S.backupNagAt > 864e5);
+// Automatische Kopie des Zustands vor dem Umbau auf ein neues Datenformat (siehe init)
+let preUpdate = null;
 
 /* ---------- Ziele ---------- */
 function goalText(g, type) {
@@ -1523,6 +1533,7 @@ const Views = {
       <div class="stats"><div><b>${Object.keys(S.exercises).length}</b><span>Übungen</span></div><div><b>${trainings}</b><span>Trainings</span></div><div><b id="storage">–</b><span>Speicher</span></div></div>
       <button class="btn btn-primary" data-a="backup-make">Backup erstellen</button>
       <button class="btn" data-a="import">Backup wiederherstellen</button>
+      ${preUpdate ? `<div class="group">Sicherheitskopie</div><p class="hint" style="margin-top:6px">Automatische Kopie vom ${esc(new Date(preUpdate.at).toLocaleDateString('de-DE'))} mit ${(preUpdate.state.sessions || []).length} Einheiten. Sie entstand vor dem letzten Update des Datenformats. Neuere Einheiten sind darin nicht enthalten.</p><button class="btn" data-a="pre-restore">Diesen Stand wiederherstellen</button>` : ''}
       <button class="btn btn-danger" style="margin-top:36px" data-a="wipe">Alle Daten löschen</button>
       <div style="margin-top:28px">${fold('news', 'Was ist neu', CHANGELOG.slice(0, 3).map(c => `<p class="news-v">Version ${esc(c.v)}</p><div class="news">${c.items.map(t => `<p>${esc(t)}</p>`).join('')}</div>`).join(''))}</div>
       <p class="hint" style="margin-top:20px"><b>App-Version ${APP_VERSION}</b></p>
@@ -1960,6 +1971,13 @@ function showWhatsNew() {
     <div class="news">${entry.items.map(t => `<p>${esc(t)}</p>`).join('')}</div>
     <button class="btn btn-primary" data-a="sheet-close">Verstanden</button>`);
 }
+function showBackupNag() {
+  S.backupNagAt = Date.now(); save();
+  const days = S.lastBackup ? Math.floor((Date.now() - S.lastBackup) / 864e5) : null;
+  openSheet(`<div class="sheet-title">Zeit für ein Backup</div>
+    <p class="sheet-text">${days == null ? 'Du hast noch kein Backup gemacht.' : `Dein letztes Backup ist ${days} Tage alt.`} Alles liegt nur auf diesem iPhone. Ein Backup in iCloud Drive schützt deine Daten.</p>
+    <button class="btn btn-primary" data-a="backup-make">Backup erstellen</button><button class="btn" data-a="sheet-close">Später</button>`);
+}
 function backupDone() { S.lastBackup = Date.now(); save(); closeSheet(); toast('Backup gesichert'); rerender(); }
 function refreshSets() {
   const c = exCtx(); if (!c) return rerender();
@@ -2394,10 +2412,22 @@ const A = {
       download(f); backupDone();
     }
   },
+  'pre-restore': async () => {
+    if (!preUpdate) return;
+    if (!await confirmSheet('Sicherheitskopie wiederherstellen?', `Stand vom ${new Date(preUpdate.at).toLocaleDateString('de-DE')}. Deine aktuellen Daten werden ersetzt, neuere Einheiten gehen dabei verloren.`, 'Wiederherstellen')) return;
+    try {
+      const seen = S.seenVersion;
+      S = migrate(JSON.parse(JSON.stringify(preUpdate.state)));
+      S.seenVersion = seen;
+      await flush();
+      stack = [{ view: 'home', params: {}, scroll: 0 }]; render('top'); toast('Stand wiederhergestellt');
+    } catch (e) { toast('Wiederherstellen hat nicht geklappt'); }
+  },
   'import': () => document.getElementById('file-import').click(),
   'wipe': async () => {
-    if (!await confirmSheet('Alle Daten löschen?', 'Pläne, Übungen, Bilder und dein kompletter Verlauf werden gelöscht. Das lässt sich nicht rückgängig machen.', 'Alles löschen')) return;
+    if (!await confirmSheet('Alle Daten löschen?', `Pläne, Übungen, Bilder und dein kompletter Verlauf werden gelöscht.${preUpdate ? ' Die automatische Sicherheitskopie wird ebenfalls gelöscht.' : ''} Das lässt sich nicht rückgängig machen.`, 'Alles löschen')) return;
     await Store.clear('images'); imgCache.clear();
+    try { await Store.del('kv', 'pre-update'); } catch (e) {} preUpdate = null;
     S = emptyState(); await flush();
     stack = [{ view: 'home', params: {}, scroll: 0 }]; render('top'); toast('Alle Daten gelöscht');
   }
@@ -2583,16 +2613,22 @@ document.addEventListener('touchcancel', swipeEnd);
   let raw = null;
   try { raw = await Store.get('kv', 'state'); } catch (e) {}
   const wasV1 = raw && (raw.version || 1) < SCHEMA;
+  // Vor dem Umbau auf ein neues Datenformat eine Kopie des alten Stands ablegen (wird beim nächsten Umbau ersetzt)
+  if (wasV1) { try { await Store.put('kv', 'pre-update', { from: raw.version || 1, at: Date.now(), state: raw }); } catch (e) {} }
+  try { preUpdate = await Store.get('kv', 'pre-update') || null; } catch (e) { preUpdate = null; }
   S = migrate(raw);
   if (wasV1) flush();
   autoClose();
   stack = [{ view: 'home', params: {}, scroll: 0 }];
   render('top');
-  if (S.seenVersion !== APP_VERSION && !activeSession()) setTimeout(showWhatsNew, 500);
+  if (!activeSession()) {
+    if (S.seenVersion !== APP_VERSION) setTimeout(showWhatsNew, 500);
+    else if (backupNagDue()) setTimeout(showBackupNag, 500);
+  }
   gcImages();
   try { if (navigator.storage && navigator.storage.persist) navigator.storage.persist(); } catch (e) {}
   setInterval(tickTimers, 30000);
-  document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') { autoClose(); tickTimers(); } });
+  document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') { autoClose(); tickTimers(); if (!sheetEl && !activeSession() && S.seenVersion === APP_VERSION && backupNagDue()) showBackupNag(); } });
   if ('serviceWorker' in navigator && location.protocol === 'https:') {
     // Gab es schon eine aktive Version? Dann lädt die App nach einem Update einmal selbst neu.
     const hadController = !!navigator.serviceWorker.controller;
