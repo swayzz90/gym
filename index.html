@@ -466,6 +466,10 @@ html::-webkit-scrollbar,body::-webkit-scrollbar,*::-webkit-scrollbar{display:non
 .news{margin:0 0 6px}
 .news p{margin:0 0 10px;font-size:16px;line-height:1.4;color:var(--ash)}
 .news-v{margin:14px 0 6px;font-size:14px;font-weight:700;color:var(--chalk)}
+.bw-btn{height:38px;border-radius:9px;background:var(--iron);font:700 19px/1 var(--plate);color:var(--chalk);display:flex;align-items:center;justify-content:center;text-align:center}
+.bw-btn:active{background:var(--steel)}
+.bw-btn.on{background:var(--chalk);color:var(--black)}
+.recent-wrap{margin-top:16px}
 </style>
 </head>
 <body>
@@ -481,9 +485,21 @@ window.BODY_IMG="data:image/webp;base64,UklGRgiwAABXRUJQVlA4WAoAAAAQAAAAZwEA9wMA
 /* ---------- Grundlagen ---------- */
 const $app = document.getElementById('app');
 const SCHEMA = 11;
-const APP_VERSION = '5.6';
+const APP_VERSION = '5.9';
 // Was ist neu: kurze Zeilen pro Version, neueste zuerst. Wird nach einem Update einmal angezeigt.
 const CHANGELOG = [
+  { v: '5.9', items: [
+    'Neu: „Letzte Einheiten“ auf der Startseite. Eine eigene Seite mit allen Einheiten, nach Monat gruppiert.',
+    'In jedem Tag gibt es dasselbe nur mit den Einheiten dieses Tages. Die Einheiten heißen wie der Tag.',
+    'Dabei: Button „BW“ bei Körpergewichtsübungen, unter „Drop“. Ein Tipp setzt reines Körpergewicht.'
+  ] },
+  { v: '5.8', items: [
+    'Neuer Button „BW“ bei Körpergewichtsübungen, unter „Drop“. Ein Tipp setzt den Satz auf reines Körpergewicht.'
+  ] },
+  { v: '5.7', items: [
+    'Körpergewicht ohne Zusatz lässt sich jetzt auch eintragen, wenn der Satz davor Zusatzgewicht hatte.',
+    'Dafür gibt es im Satz-Menü „Nur Körpergewicht“. Auch Minus bis BW oder die Eingabe 0 oder BW funktionieren.'
+  ] },
   { v: '5.6', items: [
     'Notizen zu Übungen gelten jetzt pro Tag. Dips bei Push und bei Calisthenics haben je eine eigene Notiz.',
     'Bestehende Notizen wurden in alle Tage kopiert, in denen die Übung vorkommt. Du kannst sie jetzt einzeln ändern.'
@@ -750,6 +766,8 @@ function lastSet(lp, rows, i) {
   return lp.sets[n] || null;
 }
 const ghostW = (w, bw) => bw ? (w ? '+' + fmt(w) : 'BW') : fmt(w);
+// Inhalt des Gewichtsfelds. Bei Körpergewichtsübungen ist 0 das ausdrücklich eingetragene reine Körpergewicht, leer (null) nimmt den grauen Vorschlag.
+const wVal = (bw, w) => bw ? (w ? '+' + fmt(w) : (w === 0 ? 'BW' : '')) : fmt(w);
 function currentRows(exId, dayId) { const x = activeFor(dayId); return (x && x.entries[exId]) || templateRows(exId, dayId); }
 function ensureEntry(exId, dayId) {
   const x = activeFor(dayId); if (!x) return null;
@@ -1260,10 +1278,13 @@ const Views = {
         const live = !!activeFor(dId), last = lastDayDate(dId);
         return `<button class="cur-day ${live ? 'live-day' : ''}" data-a="open-day" data-id="${dId}"><span class="cd-name">${esc(d.name)}</span><span class="cd-meta">${live ? 'läuft' : (last ? rel(last) : 'neu')}</span></button>`;
       }).join('');
+      const fin = S.sessions.filter(x => x.end != null).sort(byStartDesc), f0 = fin[0], f0d = f0 && S.days[f0.dayId];
+      const recentRow = f0 ? `<div class="rows recent-wrap"><button class="row" data-a="open-recent"><div class="row-main"><div class="row-title">Letzte Einheiten</div><div class="row-sub">${esc(f0d ? f0d.name : 'Einheit')}, ${esc(rel(f0.date))}</div></div>${ICON.chev}</button></div>` : '';
       body = `<div class="cur-plan">
           <button class="cur-head" data-a="open-plan" data-id="${cur.id}"><span><small>Aktueller Plan</small><strong>${esc(cur.name)}</strong></span>${ICON.chev}</button>
           ${days ? `<div class="cur-days">${days}</div>` : '<p class="muted" style="margin:0 16px 16px">Noch keine Tage. Tipp oben auf den Plan, um Tage anzulegen.</p>'}
         </div>
+        ${recentRow}
         ${others.length ? `<div class="group">Weitere Pläne</div><div class="rows">${others.map(p => {
           const n = p.days.length, last = lastPlanDate(p);
           return `<button class="row" data-a="open-plan" data-id="${p.id}"><div class="row-main"><div class="row-title">${esc(p.name)}</div><div class="row-sub">${n} ${n === 1 ? 'Tag' : 'Tage'}${last ? `, zuletzt ${rel(last)}` : ''}</div></div>${ICON.chev}</button>`;
@@ -1349,10 +1370,7 @@ const Views = {
       return `<button class="row" data-a="open-ex" data-day="${id}" data-id="${exId}">${thumb(ex)}<div class="row-main"><div class="row-title">${esc(ex.name)}</div><div class="row-sub">${sub}</div></div>${ICON.chev}</button>`;
     }).join('');
     const note = edit ? '' : fold('dnote:' + id, 'Notiz zum Tag', `<textarea class="field note-field" data-field="note-day" data-id="${id}" placeholder="z. B. Schulter zwickt, heute leichter">${esc(d.note)}</textarea>`, !!(d.note || '').trim());
-    const hist = edit || !past.length ? '' : fold('units:' + id, `Vergangene Einheiten (${past.length})`, `<div class="rows">${past.map(x => {
-      const n = sessionSets(x), v = sessionVolume(x);
-      return `<button class="row unit-row" data-a="open-session" data-id="${x.id}">${x.photos && x.photos.length ? `<div class="thumb"><img data-img="${esc(x.photos[0])}" alt=""></div>` : ''}<div class="row-main"><div class="row-title">${esc(fmtDay(x.start))}</div><div class="row-sub">${x.legacy ? '' : fmtDur(x.end - x.start) + ', '}${n} ${n === 1 ? 'Satz' : 'Sätze'}${v ? ', ' + fmtKg(v) : ''}</div></div>${ICON.chev}</button>`;
-    }).join('')}</div>`);
+    const hist = edit || !past.length ? '' : `<div class="rows recent-wrap"><button class="row" data-a="open-recent" data-day="${id}"><div class="row-main"><div class="row-title">Letzte Einheiten</div><div class="row-sub">${past.length} ${past.length === 1 ? 'Einheit' : 'Einheiten'}, zuletzt ${esc(rel(past[0].date))}</div></div>${ICON.chev}</button></div>`;
     const startBtn = edit ? '' : (sess
       ? `<div class="photo-bar">${(sess.photos || []).map(pid => `<button class="photo-thumb" data-a="photo-menu" data-sess="${sess.id}" data-id="${esc(pid)}"><img data-img="${esc(pid)}" alt=""></button>`).join('')}<button class="photo-add" data-a="photo-add" data-sess="${sess.id}">${ICON.cam}<span>${sess.photos && sess.photos.length ? 'Noch ein Foto' : 'Foto zur Einheit'}</span></button></div>`
       : `<button class="btn btn-primary btn-start" data-a="session-start" data-day="${id}">Einheit starten</button>`);
@@ -1544,6 +1562,21 @@ const Views = {
       ${all.length ? `<div class="group">Einträge</div><div class="rows">${[...all].reverse().map(e => `<button class="row ${sel && e.date === sel.date ? 'row-sel' : ''}" data-a="body-entry" data-date="${e.date}"><div class="row-main"><div class="row-title">${esc(dlong(e.date))}</div><div class="row-sub">${esc(BODY_FIELDS.filter(f => e[f[0]] != null).map(f => `${f[1]} ${fmt(e[f[0]])} ${f[2]}`).join(', '))}</div></div>${ICON.chev}</button>`).join('')}</div>` : ''}`;
   },
 
+  recent({ day } = {}) {
+    const d = day ? S.days[day] : null;
+    const xs = S.sessions.filter(x => x.end != null && (!day || x.dayId === day)).sort(byStartDesc);
+    const multi = !day && S.plans.length > 1;
+    const groups = [];
+    xs.forEach(x => {
+      const k = monthLabel(x.start);
+      if (!groups.length || groups[groups.length - 1].k !== k) groups.push({ k, xs: [] });
+      groups[groups.length - 1].xs.push(x);
+    });
+    return `${bar({ back: day ? (d ? d.name : 'Zurück') : 'Training' })}
+      <h1 class="title">Letzte Einheiten</h1>
+      <p class="lead">${day && d ? esc(d.name) + ', ' : ''}${xs.length} ${xs.length === 1 ? 'Einheit' : 'Einheiten'}</p>
+      ${groups.length ? groups.map(g => `<div class="group">${esc(g.k)}</div><div class="rows">${g.xs.map(x => unitRowHtml(x, multi)).join('')}</div>`).join('') : '<p class="muted">Noch keine abgeschlossene Einheit.</p>'}`;
+  },
   data() {
     const trainings = S.sessions.filter(s => Object.values(s.entries).some(x => doneSets(x).length)).length;
     return `${bar({ back: 'Training' })}
@@ -1742,6 +1775,15 @@ function kraftAnalysisHtml(p, an, chips) {
     ${repDistHtml(an)}
     ${an.missing.length ? `<p class="hint">Für ${an.missing.length} ${an.missing.length === 1 ? 'Übung' : 'Übungen'} fehlt die Satzangabe, die App schätzt sie aus deiner letzten Einheit oder mit 3 Sätzen: ${esc(an.missing.map(id => S.exercises[id].name).join(', '))}. Trag sie in der Übung unter „Sätze und Wdh-Bereich festlegen“ ein.</p>` : ''}`;
 }
+const monthLabel = t => new Date(t).toLocaleDateString('de-DE', { month: 'long', year: 'numeric' });
+// Zeile einer abgeschlossenen Einheit: Titel nach dem Tag (bei mehreren Plänen mit Plan), darunter Datum, Dauer und Sätze
+function unitRowHtml(x, multi) {
+  const d = S.days[x.dayId], p = d ? planOfDay(x.dayId) : null;
+  const title = d ? (multi && p ? `${p.name}, ${d.name}` : d.name) : 'Einheit';
+  const n = sessionSets(x);
+  const sub = [fmtDay(x.start), x.legacy ? '' : fmtDur(x.end - x.start), `${n} ${n === 1 ? 'Satz' : 'Sätze'}`].filter(Boolean).join(', ');
+  return `<button class="row unit-row" data-a="open-session" data-id="${x.id}">${x.photos && x.photos.length ? `<div class="thumb"><img data-img="${esc(x.photos[0])}" alt=""></div>` : ''}<div class="row-main"><div class="row-title">${esc(title)}</div><div class="row-sub">${esc(sub)}</div></div>${ICON.chev}</button>`;
+}
 function goalHtml(ex, dayId) {
   const goal = goalOf(ex, dayId);
   if (!goal) return `<button class="goal-add" data-a="goal-open">${ICON.flag}Ziel setzen</button>`;
@@ -1790,7 +1832,7 @@ function setRow(s, i, ex, last, pr, ghost, no) {
   const lastTxt = last ? `Last ${setHtml(last, ex.type)}` : 'Last –';
   return `<div class="set ${s.done ? 'done' : ''} ${s.warm ? 'warm' : ''} ${ui.act === i ? 'act' : ''} ${gr != null && !s.done ? 'has-ghost' : ''}" data-set="${i}"><div class="set-row">
       <button class="set-no" data-a="set-menu" data-i="${i}" aria-label="${s.warm ? 'Aufwärmsatz' : 'Satz ' + no} Optionen">${no || i + 1}</button>
-      <input class="inp ${gw != null ? 'ghost' : ''}" inputmode="decimal" enterkeyhint="done" data-in="w" data-i="${i}" value="${bw && s.w ? '+' + fmt(s.w) : fmt(s.w)}" placeholder="${gw != null ? ghostW(gw, bw) : (bw ? 'BW' : '–')}" aria-label="Satz ${i + 1} ${bw ? 'Zusatzgewicht' : 'Gewicht'}">
+      <input class="inp ${gw != null ? 'ghost' : ''}" inputmode="decimal" enterkeyhint="done" data-in="w" data-i="${i}" value="${wVal(bw, s.w)}" placeholder="${gw != null ? ghostW(gw, bw) : (bw ? 'BW' : '–')}" aria-label="Satz ${i + 1} ${bw ? 'Zusatzgewicht' : 'Gewicht'}">
       <input class="inp ${gr != null ? 'ghost' : ''}" inputmode="numeric" enterkeyhint="done" data-in="r" data-i="${i}" value="${s.r ?? ''}" placeholder="${gr != null ? gr : '–'}" aria-label="Satz ${i + 1} Wiederholungen">
       ${s.warm ? '<span></span>' : `<button class="drop-btn" data-a="drop-add" data-i="${i}">Drop</button>`}
       <button class="check" data-a="set-check" data-i="${i}" aria-label="Satz ${i + 1} erledigt">${ICON.check}</button>
@@ -1799,6 +1841,7 @@ function setRow(s, i, ex, last, pr, ghost, no) {
     <div class="step-row"><span></span>
       <div class="steps"><button data-a="step" data-k="w" data-d="-1" data-i="${i}" aria-label="Gewicht minus 1 kg">−</button><button data-a="step" data-k="w" data-d="1" data-i="${i}" aria-label="Gewicht plus 1 kg">+</button></div>
       <div class="steps"><button data-a="step" data-k="r" data-d="-1" data-i="${i}" aria-label="Wiederholungen minus 1">−</button><button data-a="step" data-k="r" data-d="1" data-i="${i}" aria-label="Wiederholungen plus 1">+</button></div>
+      ${bw && !s.warm ? `<button class="bw-btn ${s.w === 0 ? 'on' : ''}" data-a="set-bw" data-i="${i}" aria-label="Nur Körpergewicht">BW</button>` : ''}
     </div>
     ${s.warm ? '' : `<button class="last-chip ${last ? '' : 'none'}" data-a="last-use" data-i="${i}" ${last ? '' : 'disabled'}>${lastTxt}</button>`}
     ${drops}</div>`;
@@ -2120,6 +2163,7 @@ const A = {
     const p = findPlan(el.dataset.plan); p.days = p.days.filter(x => x !== d.id); delete S.days[d.id]; save(); rerender(); toast('Tag gelöscht');
   },
   'open-day': el => go('day', { id: el.dataset.id }),
+  'open-recent': el => go('recent', el.dataset.day ? { day: el.dataset.day } : {}),
 
   'ex-add': el => openPicker(el.dataset.day),
   'pick-area': el => { ui.pa = el.dataset.v; refreshPicker(); },
@@ -2207,12 +2251,14 @@ const A = {
     const cur = (currentRows(c.id, c.day) || [])[i];
     const opts = [];
     if (!(cur && cur.warm)) opts.push({ label: 'Drop hinzufügen', v: 'drop' });
+    if (S.exercises[c.id].type === 'bw') opts.push({ label: 'Nur Körpergewicht', v: 'bw' });
     if (warmOn(c.day) || (cur && cur.warm)) opts.push({ label: cur && cur.warm ? 'Kein Aufwärmsatz' : 'Als Aufwärmsatz markieren', v: 'warm' });
     opts.push({ label: 'Satz löschen', v: 'del', danger: true });
     const v = await actionSheet(cur && cur.warm ? 'Aufwärmsatz' : `Satz ${i + 1}`, opts);
     if (!v) return;
     const sets = ensureEntry(c.id, c.day); if (!sets) return;
     if (v === 'drop') addDrop(sets, i);
+    else if (v === 'bw') sets[i].w = 0;
     else if (v === 'warm') { if (sets[i].warm) delete sets[i].warm; else { sets[i].warm = true; sets[i].drops = []; } }
     else { sets.splice(i, 1); ui.act = null; }
     save(); refreshSets();
@@ -2235,15 +2281,25 @@ const A = {
       const cur = r.w != null ? r.w : (g.w != null ? g.w : (base && base.w != null ? base.w : (ex.type === 'bw' ? 0 : null)));
       let v = cur == null ? (dir > 0 ? stp : 0) : cur + dir * stp;
       v = Math.max(0, Math.round(v * 100) / 100);
-      r.w = (ex.type === 'bw' && v === 0) ? null : v;
+      r.w = v;
     } else {
       const cur = r.r != null ? r.r : (g.r != null ? g.r : (base && base.r != null ? base.r : 0));
       r.r = Math.max(0, cur + dir);
     }
     const box = el.closest('.set');
     const wi = box.querySelector('[data-in="w"]'), ri = box.querySelector('[data-in="r"]');
-    if (wi) wi.value = ex.type === 'bw' && r.w ? '+' + fmt(r.w) : fmt(r.w); if (ri) ri.value = r.r ?? '';
+    if (wi) wi.value = wVal(ex.type === 'bw', r.w); if (ri) ri.value = r.r ?? '';
+    const bb = box.querySelector('.bw-btn'); if (bb) bb.classList.toggle('on', r.w === 0);
     updateGhosts(); save();
+  },
+  'set-bw': el => {
+    const c = exCtx(); if (!c) return;
+    const sets = ensureEntry(c.id, c.day); if (!sets) return;
+    const r = sets[+el.dataset.i]; if (!r) return;
+    r.w = 0;
+    const box = el.closest('.set'), wi = box.querySelector('[data-in="w"]');
+    if (wi) wi.value = wVal(true, 0);
+    el.classList.add('on'); updateGhosts(); save();
   },
   'last-use': el => {
     const c = exCtx(); if (!c) return;
@@ -2484,8 +2540,9 @@ function onSetInput(el) {
   const s = sets[+el.dataset.i]; if (!s) return;
   const k = el.dataset.in;
   let v = num(el.value);
+  if (k === 'w' && S.exercises[c.id].type === 'bw' && /^\s*bw\s*$/i.test(el.value)) v = 0;
   if ((k === 'r' || k === 'dr') && v != null) v = Math.max(0, Math.round(v));
-  if (k === 'w') s.w = v;
+  if (k === 'w') { s.w = v; const bb = el.closest('.set') && el.closest('.set').querySelector('.bw-btn'); if (bb) bb.classList.toggle('on', v === 0); }
   else if (k === 'r') s.r = v;
   else { const d = (s.drops || [])[+el.dataset.j]; if (!d) return; if (k === 'dw') d.w = v; else d.r = v; }
   if (k === 'w' || k === 'r') updateGhosts();
