@@ -480,10 +480,14 @@ window.BODY_IMG="data:image/webp;base64,UklGRgiwAABXRUJQVlA4WAoAAAAQAAAAZwEA9wMA
 'use strict';
 /* ---------- Grundlagen ---------- */
 const $app = document.getElementById('app');
-const SCHEMA = 10;
-const APP_VERSION = '5.5';
+const SCHEMA = 11;
+const APP_VERSION = '5.6';
 // Was ist neu: kurze Zeilen pro Version, neueste zuerst. Wird nach einem Update einmal angezeigt.
 const CHANGELOG = [
+  { v: '5.6', items: [
+    'Notizen zu Übungen gelten jetzt pro Tag. Dips bei Push und bei Calisthenics haben je eine eigene Notiz.',
+    'Bestehende Notizen wurden in alle Tage kopiert, in denen die Übung vorkommt. Du kannst sie jetzt einzeln ändern.'
+  ] },
   { v: '5.5', items: [
     'Backup-Erinnerung nach 7 Tagen. Beim Öffnen kannst du direkt ein Backup erstellen.',
     'Vor einem Update des Datenformats legt die App automatisch eine Sicherheitskopie an.',
@@ -604,6 +608,14 @@ function migrate(s) {
     const ds = Object.values(s.days).filter(d => d.exercises.includes(ex.id)); if (!ds.length) continue;
     ds.forEach(d => { if (!d.goals[ex.id]) d.goals[ex.id] = JSON.parse(JSON.stringify(ex.goal)); });
     ex.goal = null;
+  }
+  // Ab Version 11 gehören auch Notizen zu Übung und Tag. Eine alte Notiz an der Übung wandert in alle Tage, in denen sie vorkommt.
+  for (const d of Object.values(s.days)) { if (!d.notes || typeof d.notes !== 'object') d.notes = {}; }
+  for (const ex of Object.values(s.exercises)) {
+    if (!(ex.note || '').trim()) continue;
+    const ds = Object.values(s.days).filter(d => d.exercises.includes(ex.id)); if (!ds.length) continue;
+    ds.forEach(d => { if (!(d.notes[ex.id] || '').trim()) d.notes[ex.id] = ex.note; });
+    ex.note = '';
   }
   if (!Array.isArray(s.body)) s.body = [];
   if (!s.plans.some(p => p.id === s.currentPlan)) s.currentPlan = s.plans.length ? s.plans[0].id : null;
@@ -808,6 +820,14 @@ function goalText(g, type) {
   const w = g.weight != null ? wUnit(g.weight, type) : '';
   if (g.reps == null) return w;
   return `${g.sets ? g.sets + ' × ' : ''}${g.reps} Wdh${w ? ' bei ' + w : ''}`;
+}
+// Notizen gehören zu Übung und Tag: days[dayId].notes[exId]. Ohne Tag bleibt die Notiz an der Übung.
+const noteOf = (ex, dayId) => (dayId && S.days[dayId]) ? ((S.days[dayId].notes || {})[ex.id] || '') : (ex.note || '');
+function setNote(exId, dayId, text) {
+  const d = S.days[dayId];
+  if (!d) { const ex = S.exercises[exId]; if (ex) ex.note = text; return; }
+  if (!d.notes) d.notes = {};
+  if (text) d.notes[exId] = text; else delete d.notes[exId];
 }
 // Ziele gehören zu Übung und Tag: days[dayId].goals[exId]
 const goalOf = (ex, dayId) => (ex && dayId && S.days[dayId] && S.days[dayId].goals && S.days[dayId].goals[ex.id]) || null;
@@ -1369,7 +1389,7 @@ const Views = {
       ${strengthLine(ex, day)}
       <div id="goalbox">${goalHtml(ex, day)}</div>
       <div id="sets">${setsBlock(ex, day)}</div>
-      ${fold('note:' + id, 'Notiz', `<textarea class="field note-field" data-field="note-ex" data-id="${id}" placeholder="z. B. Sitzhöhe 4, enger Griff">${esc(ex.note)}</textarea>`, !!(ex.note || '').trim())}
+      ${fold('note:' + id + ':' + (day || ''), 'Notiz', `<textarea class="field note-field" data-field="note-ex" data-id="${id}" data-day="${day || ''}" placeholder="z. B. Sitzhöhe 4, enger Griff">${esc(noteOf(ex, day))}</textarea>`, !!noteOf(ex, day).trim())}
       ${ex.desc ? fold('desc:' + id, 'Beschreibung', `<div class="fold-text">${esc(ex.desc)}</div>`) : ''}
       ${l ? fold('info:' + id, 'Infos zur Übung', infoHtml(l, ex.name)) : ''}
       ${(() => { const sr = strengthSeries(ex, day || null); return sr.length >= 2 ? fold('kraft:' + id, 'Kraftverlauf', `<p class="hint" style="margin:0 0 4px">${metricUnit(ex) === 'kg' ? 'Geschätztes Maximalgewicht je Einheit' : 'Wdh mit Körpergewicht, die deine beste Leistung je Einheit entspricht'}.</p>${chartSvg(sr.map(p => Math.round(p.v * 10) / 10), sr.map(p => p.date))}`) : ''; })()}
@@ -2452,7 +2472,7 @@ document.addEventListener('input', e => {
     if (l) { l.innerHTML = tab === 'lib' ? libBrowse() : libList(); hydrateImages(l); }
   }
   else if (f === 'pq') { ui.pq = el.value; refreshPicker(); }
-  else if (f === 'note-ex') { const ex = S.exercises[el.dataset.id]; if (ex) { ex.note = el.value; save(); } }
+  else if (f === 'note-ex') { const ex = S.exercises[el.dataset.id]; if (ex) { setNote(ex.id, el.dataset.day || null, el.value); save(); } }
   else if (f === 'note-day') { const d = S.days[el.dataset.id]; if (d) { d.note = el.value; save(); } }
   else if (ui.draft && f === 'step') { const v = num(el.value); ui.draft.step = v && v > 0 ? v : null; }
   else if (ui.draft && (f === 'name' || f === 'desc')) ui.draft[f] = el.value;
