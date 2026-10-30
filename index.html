@@ -484,10 +484,15 @@ window.BODY_IMG="data:image/webp;base64,UklGRgiwAABXRUJQVlA4WAoAAAAQAAAAZwEA9wMA
 'use strict';
 /* ---------- Grundlagen ---------- */
 const $app = document.getElementById('app');
-const SCHEMA = 11;
-const APP_VERSION = '5.9';
+const SCHEMA = 12;
+const APP_VERSION = '5.10';
 // Was ist neu: kurze Zeilen pro Version, neueste zuerst. Wird nach einem Update einmal angezeigt.
 const CHANGELOG = [
+  { v: '5.10', items: [
+    'Einheiten bekommen einen Namen nach Tageszeit, zum Beispiel „Afternoon Push“ oder „Night Pull“.',
+    'Zu sehen in „Letzte Einheiten“ auf der Startseite und in jedem Tag.',
+    'Im Plan unter „Bearbeiten“ lässt sich die Benennung ausschalten.'
+  ] },
   { v: '5.9', items: [
     'Neu: „Letzte Einheiten“ auf der Startseite. Eine eigene Seite mit allen Einheiten, nach Monat gruppiert.',
     'In jedem Tag gibt es dasselbe nur mit den Einheiten dieses Tages. Die Einheiten heißen wie der Tag.',
@@ -602,7 +607,7 @@ function migrate(s) {
   if (typeof s.backupNagAt !== 'number') s.backupNagAt = null;
   if (!Array.isArray(s.plans)) s.plans = [];
   // Ab Version 9: Trainingsziel und Aufwärmsätze je Plan
-  for (const p of s.plans) { p.focus = p.focus === 'kraft' ? 'kraft' : 'hyp'; p.warmup = p.warmup === true; }
+  for (const p of s.plans) { p.focus = p.focus === 'kraft' ? 'kraft' : 'hyp'; p.warmup = p.warmup === true; p.timeNames = p.timeNames !== false; }
   if (!Array.isArray(s.sessions)) s.sessions = [];
   if (!Array.isArray(s.muscles)) s.muscles = [];
   for (const ex of Object.values(s.exercises)) {
@@ -817,7 +822,7 @@ function dropWeight(b) {
 }
 function moveIn(arr, i, dir) { const j = i + dir; if (j < 0 || j >= arr.length) return; [arr[i], arr[j]] = [arr[j], arr[i]]; }
 function newPlan(name, dayNames) {
-  const p = { id: uid(), name, days: [], focus: 'hyp', warmup: false };
+  const p = { id: uid(), name, days: [], focus: 'hyp', warmup: false, timeNames: true };
   if (!S.plans.length) S.currentPlan = p.id;
   dayNames.forEach(n => { const d = { id: uid(), name: n, exercises: [], note: '' }; S.days[d.id] = d; p.days.push(d.id); });
   S.plans.push(p);
@@ -846,6 +851,20 @@ function setNote(exId, dayId, text) {
   if (!d) { const ex = S.exercises[exId]; if (ex) ex.note = text; return; }
   if (!d.notes) d.notes = {};
   if (text) d.notes[exId] = text; else delete d.notes[exId];
+}
+// Name einer Einheit nach Tageszeit der Startzeit, zum Beispiel "Afternoon Push". Wird beim Anzeigen berechnet, nichts davon ist gespeichert.
+const DAYTIMES = [[4, 'Early Morning'], [8, 'Morning'], [12, 'Midday'], [14, 'Afternoon'], [18, 'Evening'], [22, 'Night']];
+function dayTimeOf(t) {
+  const h = new Date(t).getHours();
+  let name = 'Night';
+  for (const [from, label] of DAYTIMES) if (h >= from) name = label;
+  return h < 4 ? 'Night' : name;
+}
+function sessionName(x) {
+  const d = S.days[x.dayId]; if (!d) return 'Einheit';
+  const p = planOfDay(x.dayId);
+  if (x.legacy || (p && p.timeNames === false)) return d.name;
+  return dayTimeOf(x.start) + ' ' + d.name;
 }
 // Ziele gehören zu Übung und Tag: days[dayId].goals[exId]
 const goalOf = (ex, dayId) => (ex && dayId && S.days[dayId] && S.days[dayId].goals && S.days[dayId].goals[ex.id]) || null;
@@ -1331,6 +1350,9 @@ const Views = {
       <div class="group">Aufwärmsätze</div>
       <div class="seg"><button class="${!p.warmup ? 'on' : ''}" data-a="plan-warm" data-id="${id}" data-v="0">Aus</button><button class="${p.warmup ? 'on' : ''}" data-a="plan-warm" data-id="${id}" data-v="1">An</button></div>
       <p class="hint">Wenn an, kannst du in der Übung Aufwärmsätze eintragen. Sie zählen nicht bei Rekorden, Last und Statistik.</p>
+      <div class="group">Benennung der Einheiten</div>
+      <div class="seg"><button class="${p.timeNames !== false ? 'on' : ''}" data-a="plan-names" data-id="${id}" data-v="1">Mit Tageszeit</button><button class="${p.timeNames === false ? 'on' : ''}" data-a="plan-names" data-id="${id}" data-v="0">Nur Tag</button></div>
+      <p class="hint">Zum Beispiel „Afternoon Push“ statt „Push“ in „Letzte Einheiten“.</p>
       ${S.currentPlan !== id ? `<button class="btn btn-primary" data-a="plan-current" data-id="${id}">Als aktuellen Plan festlegen</button>` : ''}
       <button class="btn" data-a="plan-rename" data-id="${id}">Plan umbenennen</button>
       <button class="btn btn-danger" data-a="plan-delete" data-id="${id}">Plan löschen</button>`;
@@ -1343,7 +1365,7 @@ const Views = {
       ${p.days.some(dId => S.days[dId] && S.days[dId].exercises.length) ? `<button class="btn" style="margin-top:22px" data-a="plan-analyse" data-id="${id}">Plan analysieren</button>` : ''}`;
     }
     return `${bar({ back: 'Training', right: `<button class="bar-btn" data-a="edit-toggle" data-key="plan:${id}">${edit ? 'Fertig' : 'Bearbeiten'}</button>` })}
-      <h1 class="title">${esc(p.name)}</h1>${edit ? '<p class="lead">Tage sortieren, umbenennen oder löschen. Dazu Trainingsziel und Aufwärmsätze.</p>' : (S.currentPlan === id ? '<p class="lead"><span class="tag">Aktueller Plan</span></p>' : '')}${body}`;
+      <h1 class="title">${esc(p.name)}</h1>${edit ? '<p class="lead">Tage sortieren, umbenennen oder löschen. Dazu Trainingsziel, Aufwärmsätze und Benennung.</p>' : (S.currentPlan === id ? '<p class="lead"><span class="tag">Aktueller Plan</span></p>' : '')}${body}`;
   },
 
   day({ id }) {
@@ -1779,9 +1801,9 @@ const monthLabel = t => new Date(t).toLocaleDateString('de-DE', { month: 'long',
 // Zeile einer abgeschlossenen Einheit: Titel nach dem Tag (bei mehreren Plänen mit Plan), darunter Datum, Dauer und Sätze
 function unitRowHtml(x, multi) {
   const d = S.days[x.dayId], p = d ? planOfDay(x.dayId) : null;
-  const title = d ? (multi && p ? `${p.name}, ${d.name}` : d.name) : 'Einheit';
+  const title = sessionName(x);
   const n = sessionSets(x);
-  const sub = [fmtDay(x.start), x.legacy ? '' : fmtDur(x.end - x.start), `${n} ${n === 1 ? 'Satz' : 'Sätze'}`].filter(Boolean).join(', ');
+  const sub = [multi && p ? p.name : '', fmtDay(x.start), x.legacy ? '' : fmtDur(x.end - x.start), `${n} ${n === 1 ? 'Satz' : 'Sätze'}`].filter(Boolean).join(', ');
   return `<button class="row unit-row" data-a="open-session" data-id="${x.id}">${x.photos && x.photos.length ? `<div class="thumb"><img data-img="${esc(x.photos[0])}" alt=""></div>` : ''}<div class="row-main"><div class="row-title">${esc(title)}</div><div class="row-sub">${esc(sub)}</div></div>${ICON.chev}</button>`;
 }
 function goalHtml(ex, dayId) {
@@ -2142,6 +2164,7 @@ const A = {
   },
   'plan-focus': el => { const p = findPlan(el.dataset.id); if (!p) return; p.focus = el.dataset.v === 'kraft' ? 'kraft' : 'hyp'; save(); rerender(); },
   'plan-warm': el => { const p = findPlan(el.dataset.id); if (!p) return; p.warmup = el.dataset.v === '1'; save(); rerender(); },
+  'plan-names': el => { const p = findPlan(el.dataset.id); if (!p) return; p.timeNames = el.dataset.v === '1'; save(); rerender(); },
   'plan-rename': async el => { const p = findPlan(el.dataset.id); const n = await ask('Plan umbenennen', p.name); if (!n) return; p.name = n; save(); rerender(); },
   'plan-delete': async el => {
     const p = findPlan(el.dataset.id);
