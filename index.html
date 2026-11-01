@@ -484,10 +484,15 @@ window.BODY_IMG="data:image/webp;base64,UklGRgiwAABXRUJQVlA4WAoAAAAQAAAAZwEA9wMA
 'use strict';
 /* ---------- Grundlagen ---------- */
 const $app = document.getElementById('app');
-const SCHEMA = 12;
-const APP_VERSION = '5.11';
+const SCHEMA = 13;
+const APP_VERSION = '5.12';
 // Was ist neu: kurze Zeilen pro Version, neueste zuerst. Wird nach einem Update einmal angezeigt.
 const CHANGELOG = [
+  { v: '5.12', items: [
+    'Einheiten lassen sich der Vorwoche zuordnen, wenn du die neue Woche später angefangen hast.',
+    'Nach dem Beenden fragt die App am Montag oder Dienstag einmal, ob die Einheit zur Vorwoche zählt.',
+    'In der Einheit gibt es die Zeile „Woche“, um die Zuordnung später zu ändern. Das Datum bleibt.'
+  ] },
   { v: '5.11', items: [
     'Nach dem Beenden zeigt die Zusammenfassung, wie die Einheit gegenüber der letzten desselben Tages war: Volumen und neue Rekorde.',
     'Die Plan-Analyse vergleicht geplante Sätze mit dem Schnitt der letzten vier vollen Wochen.',
@@ -909,7 +914,7 @@ function muscleStats(kind, half) {
   const from = periodStart(kind), m = {}, trainings = new Set();
   let sets = 0;
   for (const s of S.sessions) {
-    if (s.date < from) continue;
+    if ((kind === 'week' ? weekOf(s) : s.date) < from) continue;
     for (const [exId, list] of Object.entries(s.entries)) {
       const n = doneSets(list).length; if (!n) continue;
       sets += n; trainings.add(s.id);
@@ -1003,7 +1008,7 @@ function actualWeekly(p) {
   if (!done.length) return null;
   const thisMon = monOf(Date.now());
   let from = new Date(thisMon); from.setDate(from.getDate() - 28);
-  const firstMon = monOf(Math.min(...done.map(x => x.start)));
+  const firstMon = new Date(done.map(weekOf).sort()[0] + 'T00:00:00');
   if (firstMon > from) from = firstMon;
   const weeks = Math.round((thisMon - from) / (7 * 864e5));
   if (weeks < 1) return null;
@@ -1011,7 +1016,7 @@ function actualWeekly(p) {
   const direct = {}, lifts = {};
   let sessions = 0;
   for (const x of done) {
-    if (x.date < fromKey || x.date >= toKey) continue;
+    const wk = weekOf(x); if (wk < fromKey || wk >= toKey) continue;
     sessions++;
     for (const [exId, rows] of Object.entries(x.entries)) {
       const ex = S.exercises[exId], n = doneSets(rows).length; if (!ex || !n) continue;
@@ -1035,7 +1040,7 @@ function compareLast(x, prCount) {
 function actualDirect(fromKey) {
   const out = {};
   for (const x of S.sessions) {
-    if (x.date < fromKey) continue;
+    if (weekOf(x) < fromKey) continue;
     for (const [exId, rows] of Object.entries(x.entries)) {
       const ex = S.exercises[exId], n = doneSets(rows).length; if (!ex || !n) continue;
       TARGETS.forEach(t => { if (ex.prim.some(m => t.m.includes(m))) out[t.g] = (out[t.g] || 0) + n; });
@@ -1065,6 +1070,26 @@ function detectProgress(x) {
 /* ---------- Wochenreport ---------- */
 function weekStartKey(d) { const t = new Date(d); t.setHours(0, 0, 0, 0); t.setDate(t.getDate() - ((t.getDay() + 6) % 7)); return dateKey(t); }
 function addDays(key, n) { const t = new Date(key + 'T12:00:00'); t.setDate(t.getDate() + n); return dateKey(t); }
+// Trainingswoche einer Einheit: Montag als Schlüssel. Gesetzt nur, wenn die Einheit einer anderen Woche zugeordnet wurde, sonst die Kalenderwoche.
+function weekOf(x) { return x.week || weekStartKey(new Date(x.date + 'T12:00:00')); }
+// Anzeige einer Woche, zum Beispiel "26.10. bis 1.11."
+function weekLabel(key) {
+  const f = d => `${d.getDate()}.${d.getMonth() + 1}.`;
+  return `${f(new Date(key + 'T12:00:00'))} bis ${f(new Date(addDays(key, 6) + 'T12:00:00'))}`;
+}
+// Frage nach dem Beenden: Einheit am Montag oder Dienstag, erste Einheit dieser Trainingswoche, die Vorwoche hat Einheiten, aber nicht für diesen Tag.
+// Liefert den Montag der Vorwoche oder null.
+function weekQuestion(x) {
+  if (x.week) return null;
+  const wd = new Date(x.date + 'T12:00:00').getDay();
+  if (wd !== 1 && wd !== 2) return null;
+  const thisKey = weekOf(x), prevKey = addDays(thisKey, -7);
+  const fin = S.sessions.filter(y => y !== x && y.end != null);
+  if (fin.some(y => weekOf(y) === thisKey)) return null;
+  const prev = fin.filter(y => weekOf(y) === prevKey);
+  if (!prev.length || prev.some(y => y.dayId === x.dayId)) return null;
+  return prevKey;
+}
 const GAGS = [
   ['ein Blauwal', 'Blauwale', 150000], ['ein Linienbus', 'Linienbusse', 12000], ['ein Elefant', 'Elefanten', 6000],
   ['ein Nashorn', 'Nashörner', 2300], ['ein Kleinwagen', 'Kleinwagen', 1000], ['ein Pferd', 'Pferde', 500],
@@ -1078,7 +1103,7 @@ function gagLine(kg) {
 }
 function weekReport(key) {
   const to = addDays(key, 7);
-  const xs = S.sessions.filter(x => x.end != null && x.date >= key && x.date < to).sort((a, b) => a.start - b.start);
+  const xs = S.sessions.filter(x => x.end != null && weekOf(x) === key).sort((a, b) => a.start - b.start);
   let sets = 0, vol = 0, mins = 0; const prog = [], musc = {};
   for (const x of xs) {
     sets += sessionSets(x); vol += sessionVolume(x); if (!x.legacy) mins += (x.end - x.start) / 60000;
@@ -1502,6 +1527,7 @@ const Views = {
       <h1 class="title">${esc(d ? d.name : 'Einheit')}</h1>
       <p class="lead">${esc(new Date(x.start).toLocaleDateString('de-DE', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' }))}${x.legacy ? '' : `, ${fmtTime(x.start)}${live ? ' bis jetzt' : ' bis ' + fmtTime(x.end)}`}</p>
       <div class="stats"><div><b>${x.legacy ? '–' : Math.max(1, Math.round(((x.end || Date.now()) - x.start) / 60000))}</b><span>Minuten</span></div><div><b>${n}</b><span>Sätze</span></div><div><b>${v ? v.toLocaleString('de-DE') : '–'}</b><span>kg bewegt</span></div></div>
+      ${live ? '' : weekRowHtml(x)}
       ${items || '<p class="muted">Keine abgehakten Sätze.</p>'}
       ${live ? '' : (!other ? `<button class="btn" style="margin-top:26px" data-a="session-reopen" data-id="${id}">Einheit wieder öffnen</button>` : '')}
       ${live ? '' : `<button class="btn btn-danger" style="margin-top:${other ? 26 : 12}px" data-a="session-delete" data-id="${id}">Einheit löschen</button>`}`;
@@ -1570,7 +1596,7 @@ const Views = {
     const ticks = per === 'week' ? [10, 20].map(t => `<span class="tick" style="left:${t / max * 100}%"></span>`).join('') : '';
     const zero = MUSCLES.filter(m => !r.m[m]);
     const label = { week: 'diese Woche', month: 'in den letzten 4 Wochen', all: 'insgesamt' }[per];
-    const weeks = [...new Set(S.sessions.filter(x => x.end != null).map(x => weekStartKey(new Date(x.date + 'T12:00:00'))))].sort().reverse();
+    const weeks = [...new Set(S.sessions.filter(x => x.end != null).map(x => weekOf(x)))].sort().reverse();
     return `${bar({ back: 'Zurück' })}
       <h1 class="title">Auswertung</h1>${tabs}
       <p class="lead">Abgehakte Arbeitssätze pro Muskelgruppe. Drops zählen nicht extra.</p>
@@ -1777,6 +1803,12 @@ function chartSvg(vals, dates) {
   const d = pts.map((p, i) => (i ? 'L' : 'M') + p[0].toFixed(1) + ' ' + p[1].toFixed(1)).join(' ');
   return `<svg class="chart" viewBox="0 0 ${W} ${H}" role="img" aria-label="Verlauf"><path d="${d}" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linejoin="round" stroke-linecap="round"/>${pts.map(p => `<circle cx="${p[0].toFixed(1)}" cy="${p[1].toFixed(1)}" r="3.5" fill="currentColor"/>`).join('')}</svg>
     <div class="chart-legend"><span>${fmt(vals[0])}${dates ? ' am ' + esc(rel(dates[0])) : ''}</span><span>höchster ${fmt(mx)}, niedrigster ${fmt(mn)}</span><span>${fmt(vals[vals.length - 1])}${dates ? ' am ' + esc(rel(dates[dates.length - 1])) : ''}</span></div>`;
+}
+// Zeile „Woche“ in der Einheit: zeigt die Trainingswoche und öffnet die Auswahl
+function weekRowHtml(x) {
+  const cal = weekStartKey(new Date(x.date + 'T12:00:00'));
+  const sub = weekLabel(weekOf(x)) + (x.week && x.week !== cal ? ', Vorwoche' : '');
+  return `<div class="rows week-wrap"><button class="row" data-a="week-pick" data-id="${x.id}"><div class="row-main"><div class="row-title">Woche</div><div class="row-sub">${esc(sub)}</div></div>${ICON.chev}</button></div>`;
 }
 // Hinweis unter der Plan-Analyse, wie die Ist-Werte entstehen
 function awHint(aw) {
@@ -2156,6 +2188,14 @@ function finalize(x, countOpen, endAt) {
   if (!Object.keys(x.entries).length) { S.sessions = S.sessions.filter(y => y !== x); return false; }
   return true;
 }
+// Fenster „Zur Vorwoche zählen?“. Liefert 'yes' oder 'no'.
+function askWeekQuestion(x, prevKey) {
+  const name = S.days[x.dayId] ? S.days[x.dayId].name : 'Einheit';
+  return new Promise(res => openSheet(`<div class="sheet-title">Zur Vorwoche zählen?</div>
+    <p class="sheet-text">Du hast ${esc(name)} in der Woche vom ${esc(weekLabel(prevKey))} noch nicht gemacht. Soll die Einheit zu dieser Woche zählen?</p>
+    <button class="btn btn-primary" data-a="sheet-opt" data-v="yes">Ja, zur Vorwoche zählen</button>
+    <button class="btn" data-a="sheet-opt" data-v="no">Nein, zur neuen Woche</button>`, v => res(v === 'yes' ? 'yes' : 'no')));
+}
 async function finishSession(x) {
   if (!x) return;
   const done = sessionSets(x);
@@ -2173,6 +2213,8 @@ async function finishSession(x) {
   if (kept) x.prog = detectProgress(x);
   save(); rerender();
   if (!kept) { toast('Leere Einheit verworfen'); return; }
+  const wk = weekQuestion(x);
+  if (wk && await askWeekQuestion(x, wk) === 'yes') { x.week = wk; save(); rerender(); }
   const prs = Object.keys(x.entries).map(id => { const ex = S.exercises[id]; const p = ex && sessionPR(ex, x); return p ? { ex, p } : null; }).filter(Boolean);
   const cmp = compareLast(x, prs.length);
   if (!x.prog.length && !prs.length && !cmp) { toast('Einheit gespeichert'); return; }
@@ -2246,6 +2288,16 @@ const A = {
     const d = S.days[el.dataset.id];
     if (!await confirmSheet(`${d.name} löschen?`, 'Deine Übungen und dein Verlauf bleiben erhalten.', 'Tag löschen')) return;
     const p = findPlan(el.dataset.plan); p.days = p.days.filter(x => x !== d.id); delete S.days[d.id]; save(); rerender(); toast('Tag gelöscht');
+  },
+  'week-pick': async el => {
+    const x = S.sessions.find(y => y.id === el.dataset.id); if (!x) return;
+    const cal = weekStartKey(new Date(x.date + 'T12:00:00')), prev = addDays(cal, -7);
+    const v = await actionSheet('Trainingswoche', [
+      { label: `Kalenderwoche (${weekLabel(cal)})${!x.week || x.week === cal ? ' · aktuell' : ''}`, v: 'cal' },
+      { label: `Vorwoche (${weekLabel(prev)})${x.week === prev ? ' · aktuell' : ''}`, v: 'prev' }]);
+    if (!v) return;
+    if (v === 'cal') delete x.week; else x.week = prev;
+    save(); rerender(); toast(v === 'cal' ? 'Zur Kalenderwoche gezählt' : 'Zur Vorwoche gezählt');
   },
   'open-day': el => go('day', { id: el.dataset.id }),
   'open-recent': el => go('recent', el.dataset.day ? { day: el.dataset.day } : {}),
