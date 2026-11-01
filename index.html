@@ -485,9 +485,14 @@ window.BODY_IMG="data:image/webp;base64,UklGRgiwAABXRUJQVlA4WAoAAAAQAAAAZwEA9wMA
 /* ---------- Grundlagen ---------- */
 const $app = document.getElementById('app');
 const SCHEMA = 12;
-const APP_VERSION = '5.10';
+const APP_VERSION = '5.11';
 // Was ist neu: kurze Zeilen pro Version, neueste zuerst. Wird nach einem Update einmal angezeigt.
 const CHANGELOG = [
+  { v: '5.11', items: [
+    'Nach dem Beenden zeigt die Zusammenfassung, wie die Einheit gegenüber der letzten desselben Tages war: Volumen und neue Rekorde.',
+    'Die Plan-Analyse vergleicht geplante Sätze mit dem Schnitt der letzten vier vollen Wochen.',
+    'In einer Übung erscheint ein Hinweis, wenn du in der letzten Einheit alle Sätze an der oberen Wdh-Grenze geschafft hast.'
+  ] },
   { v: '5.10', items: [
     'Einheiten bekommen einen Namen nach Tageszeit, zum Beispiel „Afternoon Push“ oder „Night Pull“.',
     'Zu sehen in „Letzte Einheiten“ auf der Startseite und in jedem Tag.',
@@ -988,6 +993,44 @@ function planAnalysis(p) {
     Object.entries(dayFrac).forEach(([m, v]) => { if (v > 11) perDay.push({ day: d.name, m, v }); });
   }
   return { groups, other, perDay, missing: [...missing], dist, lifts };
+}
+// Ist-Werte eines Plans: Sätze pro Muskelgruppe und Grundübungen pro Woche, Schnitt der letzten bis zu vier vollen Wochen.
+// Zählt nur Einheiten dieses Plans und nur volle Wochen, die laufende Woche fehlt.
+function actualWeekly(p) {
+  const dayIds = new Set(p.days);
+  const monOf = t => { const d = new Date(t); d.setHours(0, 0, 0, 0); d.setDate(d.getDate() - ((d.getDay() + 6) % 7)); return d; };
+  const done = S.sessions.filter(x => x.end != null && dayIds.has(x.dayId));
+  if (!done.length) return null;
+  const thisMon = monOf(Date.now());
+  let from = new Date(thisMon); from.setDate(from.getDate() - 28);
+  const firstMon = monOf(Math.min(...done.map(x => x.start)));
+  if (firstMon > from) from = firstMon;
+  const weeks = Math.round((thisMon - from) / (7 * 864e5));
+  if (weeks < 1) return null;
+  const fromKey = dateKey(from), toKey = dateKey(thisMon);
+  const direct = {}, lifts = {};
+  let sessions = 0;
+  for (const x of done) {
+    if (x.date < fromKey || x.date >= toKey) continue;
+    sessions++;
+    for (const [exId, rows] of Object.entries(x.entries)) {
+      const ex = S.exercises[exId], n = doneSets(rows).length; if (!ex || !n) continue;
+      TARGETS.forEach(t => { if (ex.prim.some(m => t.m.includes(m))) direct[t.g] = (direct[t.g] || 0) + n; });
+      if (ex.lib in MAIN_LIFTS) lifts[ex.lib] = (lifts[ex.lib] || 0) + 1;
+    }
+  }
+  const avg = o => Object.fromEntries(Object.entries(o).map(([k, v]) => [k, Math.round(v / weeks * 10) / 10]));
+  return { weeks, sessions, direct: avg(direct), lifts: avg(lifts) };
+}
+// Vergleich einer abgeschlossenen Einheit mit der letzten abgeschlossenen Einheit desselben Tages davor
+function compareLast(x, prCount) {
+  const prev = S.sessions.filter(y => y !== x && y.end != null && y.dayId === x.dayId && y.start < x.start).sort(byStartDesc)[0];
+  if (!prev || !S.days[x.dayId]) return null;
+  const v0 = sessionVolume(prev), v1 = sessionVolume(x);
+  const pct = v0 > 0 ? Math.round((v1 - v0) / v0 * 100) : null;
+  const vol = pct == null ? 'Volumen ohne Vergleich' : `${pct > 0 ? '+' : ''}${pct} % Volumen`;
+  const rec = prCount ? `${prCount} ${prCount === 1 ? 'neuer Rekord' : 'neue Rekorde'}` : 'kein neuer Rekord';
+  return { text: `Gegenüber der letzten ${S.days[x.dayId].name}-Einheit: ${vol}, ${rec}.` };
 }
 function actualDirect(fromKey) {
   const out = {};
@@ -1735,13 +1778,18 @@ function chartSvg(vals, dates) {
   return `<svg class="chart" viewBox="0 0 ${W} ${H}" role="img" aria-label="Verlauf"><path d="${d}" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linejoin="round" stroke-linecap="round"/>${pts.map(p => `<circle cx="${p[0].toFixed(1)}" cy="${p[1].toFixed(1)}" r="3.5" fill="currentColor"/>`).join('')}</svg>
     <div class="chart-legend"><span>${fmt(vals[0])}${dates ? ' am ' + esc(rel(dates[0])) : ''}</span><span>höchster ${fmt(mx)}, niedrigster ${fmt(mn)}</span><span>${fmt(vals[vals.length - 1])}${dates ? ' am ' + esc(rel(dates[dates.length - 1])) : ''}</span></div>`;
 }
+// Hinweis unter der Plan-Analyse, wie die Ist-Werte entstehen
+function awHint(aw) {
+  return aw ? `<p class="hint">Ist-Werte: Schnitt der letzten ${aw.weeks} ${aw.weeks === 1 ? 'vollen Woche' : 'vollen Wochen'}, aus ${aw.sessions} ${aw.sessions === 1 ? 'Einheit' : 'Einheiten'} dieses Plans.</p>` : '<p class="hint">Ist-Werte erscheinen, sobald eine volle Woche mit diesem Plan vorbei ist.</p>';
+}
 function planAnalysisHtml(planId) {
   if (!S.plans.length) return '<p class="muted">Leg zuerst einen Plan an.</p>';
   const p = findPlan(planId || ui.anaPlan) || S.plans[0];
   const an = planAnalysis(p);
   const act = actualDirect(periodStart('week'));
+  const aw = actualWeekly(p);
   const chips = S.plans.length > 1 ? `<div class="chips-scroll">${S.plans.map(x => `<button class="chip ${x === p ? 'on' : ''}" data-a="ana-plan" data-v="${x.id}">${esc(x.name)}</button>`).join('')}</div>` : '';
-  if (p.focus === 'kraft') return kraftAnalysisHtml(p, an, chips);
+  if (p.focus === 'kraft') return kraftAnalysisHtml(p, an, chips, aw);
   const rows = an.groups.map(g => {
     const rt = rateGroup(g, g.direct);
     const max = Math.max(g.hi * 1.25, g.direct, 1);
@@ -1750,6 +1798,7 @@ function planAnalysisHtml(planId) {
     return `<div class="ana-row ${rt.k}"><div class="bar-head"><span>${esc(g.g)}</span><b>${fmt(g.direct)}</b></div>
       <div class="track ana-track">${zone}<div class="fill" style="width:${Math.min(100, g.direct / max * 100)}%"></div></div>
       <div class="ana-sub"><span class="badge">${rt.t}</span><span>Richtwert ${g.lo ? `${g.lo} bis ${g.hi}` : `bis ${g.hi}`}${g.indirect ? `, dazu ${fmt(g.indirect)} indirekt` : ''}${reps ? `, ${reps}` : ''}${act[g.g] != null ? `, diese Woche ${act[g.g]}` : ''}</span></div>
+      ${aw && (g.direct > 0 || (aw.direct[g.g] || 0) > 0) ? `<p class="ana-note">Ist im Schnitt ${fmt(aw.direct[g.g] || 0)} pro Woche, geplant ${fmt(g.direct)}</p>` : ''}
       ${g.note && rt.k !== 'good' ? `<p class="ana-note">${esc(g.note)}</p>` : ''}</div>`;
   }).join('');
   const other = Object.entries(an.other);
@@ -1757,6 +1806,7 @@ function planAnalysisHtml(planId) {
   const high = an.groups.filter(g => rateGroup(g, g.direct).k === 'high').map(g => g.g);
   return `${chips}
     <p class="lead">Geplante direkte Sätze pro Woche aus „${esc(p.name)}“ für das Ziel Hypertrophie, jeder Tag einmal pro Woche. Die helle Fläche im Balken ist der Richtwert.</p>
+    ${awHint(aw)}
     ${low.length || high.length ? `<div class="note">${low.length ? `<b>Mehr Fokus: ${esc(low.join(', '))}</b>` : ''}${high.length ? `<span>Sehr viel: ${esc(high.join(', '))}.</span>` : ''}</div>` : '<div class="note"><b>Alle Muskelgruppen liegen im oder über dem Richtwert.</b></div>'}
     ${rows}
     ${repDistHtml(an)}
@@ -1780,17 +1830,18 @@ function repDistHtml(an) {
     ${d.none.n ? row('Ohne Wdh-Angabe', 'Trag den Bereich bei „So trainiere ich das“ ein', d.none) : ''}
     <p class="hint">Es zählt die Mitte der Angabe je Übung und Tag. Die Grenzen sind eine Festlegung der App, keine Studienwerte. Halteübungen zählen nicht.</p>`;
 }
-function kraftAnalysisHtml(p, an, chips) {
+function kraftAnalysisHtml(p, an, chips, aw) {
   const d = an.dist, total = d.kraft.n + d.aufbau.n + d.leicht.n + d.none.n;
   const missingLifts = Object.entries(MAIN_LIFTS).filter(([k]) => !an.lifts[k]).map(([, n]) => n);
   const lowShare = total > 0 && d.kraft.n / total < 0.5;
   const lifts = Object.entries(MAIN_LIFTS).map(([k, name]) => { const n = an.lifts[k]; return `<div class="ana-row ${n ? 'good' : 'low'}"><div class="bar-head"><span>${esc(name)}</span><b>${n}×</b></div>
-      <div class="ana-sub"><span class="badge">${n ? 'Im Plan' : 'Fehlt im Plan'}</span><span>${n ? (n === 1 ? 'einmal pro Woche' : n + ' Mal pro Woche') : 'nicht im Plan'}</span></div></div>`; }).join('');
+      <div class="ana-sub"><span class="badge">${n ? 'Im Plan' : 'Fehlt im Plan'}</span><span>${n ? (n === 1 ? 'einmal pro Woche' : n + ' Mal pro Woche') : 'nicht im Plan'}</span></div>${aw ? `<p class="ana-note">Ist im Schnitt ${fmt(aw.lifts[k] || 0)} Mal pro Woche</p>` : ''}</div>`; }).join('');
   const hints = [];
   if (lowShare) hints.push('Weniger als die Hälfte der geplanten Sätze liegt im Kraft-Bereich (bis 7 Wdh).');
   if (missingLifts.length) hints.push(`Fehlt im Plan: ${missingLifts.join(', ')}.`);
   return `${chips}
     <p class="lead">Geplante Sätze aus „${esc(p.name)}“ für das Ziel Kraft. Es zählen die Wiederholungsbereiche und die großen Grundübungen. Satzrichtwerte pro Muskel gibt es hier nicht, die Sätze pro Muskel siehst du unter „Training“.</p>
+    ${awHint(aw)}
     ${hints.length ? `<div class="note"><b>${esc(hints[0])}</b>${hints.slice(1).map(t => `<span>${esc(t)}</span>`).join('')}</div>` : '<div class="note"><b>Nichts fällt aus dem Rahmen.</b></div>'}
     <div class="group">Grundübungen pro Woche</div>
     ${lifts}
@@ -1823,6 +1874,14 @@ function goalHtml(ex, dayId) {
     ${action}</div>`;
 }
 
+// Steigerungs-Hinweis: Alle Sätze der letzten Einheit dieses Tages haben die obere Grenze des Wdh-Bereichs erreicht
+function stepUpHint(ex, dayId, lp) {
+  if (!lp || !lp.sets.length || isHold(ex)) return '';
+  const ep = effPlan(ex, dayId);
+  if (!ep || !ep.rmax || !lp.sets.every(s => (s.r || 0) >= ep.rmax)) return '';
+  const next = ex.type === 'bw' ? (lp.sets.some(s => s.w) ? 'Zusatzgewicht erhöhen' : 'Zusatzgewicht nehmen') : 'das Gewicht erhöhen';
+  return `<p class="hint step-up">Letzte Einheit: alle Sätze ${ep.rmax} Wdh, die obere Grenze. Beim nächsten Mal ${next}.</p>`;
+}
 function setsBlock(ex, dayId) {
   const sess = activeFor(dayId);
   const lp = lastPerformance(ex.id, dayId);
@@ -1830,6 +1889,7 @@ function setsBlock(ex, dayId) {
   if (!sess) {
     const dn = S.days[dayId] ? S.days[dayId].name : 'diesem Tag';
     return `${lp ? `<div class="last"><div class="last-label">Letzte Einheit ${esc(rel(lp.date))}</div><div class="last-sets">${lp.sets.map(r => `<span>${setHtml(r, ex.type)}</span>`).join('')}</div></div>` : ''}
+      ${stepUpHint(ex, dayId, lp)}
       <p class="idle-note">Zum Eintragen starte die Einheit bei ${esc(dn)}.</p>`;
   }
   const rows = currentRows(ex.id, dayId);
@@ -2114,8 +2174,10 @@ async function finishSession(x) {
   save(); rerender();
   if (!kept) { toast('Leere Einheit verworfen'); return; }
   const prs = Object.keys(x.entries).map(id => { const ex = S.exercises[id]; const p = ex && sessionPR(ex, x); return p ? { ex, p } : null; }).filter(Boolean);
-  if (!x.prog.length && !prs.length) { toast('Einheit gespeichert'); return; }
-  openSheet(`<div class="sheet-title">${prs.length ? 'Neue Rekorde' : 'Echter Fortschritt'}</div>
+  const cmp = compareLast(x, prs.length);
+  if (!x.prog.length && !prs.length && !cmp) { toast('Einheit gespeichert'); return; }
+  openSheet(`<div class="sheet-title">${prs.length ? 'Neue Rekorde' : x.prog.length ? 'Echter Fortschritt' : 'Einheit gespeichert'}</div>
+    ${cmp ? `<p class="sheet-text cmp">${esc(cmp.text)}</p>` : ''}
     ${prs.length ? `<div class="rows">${prs.map(({ ex, p }) => `<div class="row prog-row"><div class="row-main"><div class="row-title">${esc(ex.name)}</div><div class="row-sub">${esc(p.label)}</div></div><span class="pr-tag big">PR</span></div>`).join('')}</div>` : ''}
     ${x.prog.length ? `${prs.length ? '<div class="group">Echter Fortschritt</div>' : ''}<p class="sheet-text">Verglichen mit deinem besten Satz der letzten drei Einheiten desselben Tages.</p>
     <div class="rows">${x.prog.map(p => { const ex = S.exercises[p.exId]; return `<div class="row prog-row"><div class="row-main"><div class="row-title">${esc(ex.name)}</div><div class="row-sub">${esc(setStr(p.to, ex.type))} statt ${esc(setStr(p.from, ex.type))}</div></div><span class="up">↑</span></div>`; }).join('')}</div>` : ''}
