@@ -470,6 +470,32 @@ html::-webkit-scrollbar,body::-webkit-scrollbar,*::-webkit-scrollbar{display:non
 .bw-btn:active{background:var(--steel)}
 .bw-btn.on{background:var(--chalk);color:var(--black)}
 .recent-wrap{margin-top:16px}
+
+/* V5.13: Grafiken in der Übung */
+.gbox{margin:2px 0 6px}
+.g-row{display:flex;flex-wrap:wrap;gap:8px;margin:0 0 10px}
+.g-chip{min-height:38px;padding:0 14px;border-radius:19px;background:var(--iron);color:var(--ash);font-size:14px;font-weight:600}
+.g-chip.on{background:var(--chalk);color:var(--black)}
+.g-chip.red{background:transparent;box-shadow:inset 0 0 0 1px var(--smoke)}
+.g-chip.red.on{box-shadow:inset 0 0 0 1.5px var(--danger);color:var(--danger);background:transparent}
+.g-svg{display:block;width:100%;height:auto;margin-top:4px}
+.g-svg .gl{stroke:var(--steel);stroke-width:1}
+.g-svg .gt{fill:var(--ash);font-size:12px}
+.g-svg .gv{fill:var(--chalk);font-size:14px;font-weight:700}
+.g-line{fill:none;stroke:var(--chalk);stroke-width:2.5;stroke-linejoin:round;stroke-linecap:round}
+.g-line.o{stroke:var(--danger);stroke-dasharray:6 5}
+.g-dot{fill:var(--black);stroke:var(--chalk);stroke-width:2.5}
+.g-dot.o{stroke:var(--danger)}
+.g-pr{fill:var(--chalk);stroke:var(--black);stroke-width:2.5}
+.g-bar{fill:var(--chalk)}
+.g-bar.old{fill:var(--smoke)}
+.g-legend{display:flex;flex-wrap:wrap;gap:18px;margin:8px 2px 0;font-size:14px;color:var(--ash)}
+.g-legend i{display:inline-block;width:24px;height:0;border-top:2.5px solid var(--chalk);vertical-align:middle;margin-right:7px}
+.g-legend i.red{border-top:2.5px dashed var(--danger)}
+.g-legend i.sq{width:12px;height:12px;border:0;border-radius:3px;background:var(--smoke);margin-right:7px}
+.g-legend i.sq.now{background:var(--chalk)}
+.recbars{margin:0 0 16px}
+
 </style>
 </head>
 <body>
@@ -485,9 +511,14 @@ window.BODY_IMG="data:image/webp;base64,UklGRgiwAABXRUJQVlA4WAoAAAAQAAAAZwEA9wMA
 /* ---------- Grundlagen ---------- */
 const $app = document.getElementById('app');
 const SCHEMA = 13;
-const APP_VERSION = '5.12';
+const APP_VERSION = '5.13';
 // Was ist neu: kurze Zeilen pro Version, neueste zuerst. Wird nach einem Update einmal angezeigt.
 const CHANGELOG = [
+  { v: '5.13', items: [
+    'In jeder Übung gibt es jetzt Grafiken: den Verlauf von Gewicht und Wdh mit markierten Rekorden und Balken für den Rekord je Wdh-Bereich.',
+    'Bei Körpergewichtsübungen zeigt das Gewicht das Zusatzgewicht, „BW“ ist die Nulllinie.',
+    'Trainierst du dieselbe Übung an zwei Tagen, blendest du den anderen Tag als rote gestrichelte Linie ein.'
+  ] },
   { v: '5.12', items: [
     'Einheiten lassen sich der Vorwoche zuordnen, wenn du die neue Woche später angefangen hast.',
     'Nach dem Beenden fragt die App am Montag oder Dienstag einmal, ob die Einheit zur Vorwoche zählt.',
@@ -1156,6 +1187,34 @@ function strengthSeries(ex, dayId = null) {
   }
   return out;
 }
+// Volumen einer Übung in einer Einheit, gleiche Rechnung wie sessionVolume (ohne Aufwärmsätze, mit Drops, bei Körpergewicht mit dem Körpergewicht zum Datum)
+function exVolume(ex, x) {
+  const base = ex.type === 'bw' ? (bwAt(x.date) || 0) : 0; let v = 0;
+  for (const r of doneSets(x.entries[ex.id])) { v += (base + (r.w || 0)) * (r.r || 0); (r.drops || []).forEach(d => { v += (base + (d.w || 0)) * (d.r || 0); }); }
+  return Math.round(v);
+}
+// Punkte der Grafik je Einheit: schwerster Satz (Gewicht und Wdh), Volumen, geschätztes Maximum, Gesamtlast mit Körpergewicht.
+// pr zeigt, ob der Wert gegenüber allen früheren Einheiten desselben Tages eine neue Bestleistung ist.
+function graphPoints(ex, dayId) {
+  const out = [], hold = isHold(ex);
+  const list = S.sessions.filter(x => x.end != null && (!dayId || x.dayId === dayId)).sort((a, b) => a.start - b.start);
+  let bW = -1, bR = 0, bRep = 0, bV = 0, bE = 0;
+  for (const x of list) {
+    const sets = doneSets(x.entries[ex.id]); if (!sets.length) continue;
+    let h = null;
+    for (const s of sets) { const w = s.w || 0, r = s.r || 0; if (!r && !w) continue; if (!h || w > h.w || (w === h.w && r > h.r)) h = { w, r }; }
+    if (!h) continue;
+    const bw = ex.type === 'bw' ? bwAt(x.date) : null;
+    const v = hold ? null : exVolume(ex, x);
+    const e = hold ? null : (ex.type === 'bw' && REPS_LIBS.has(ex.lib) ? equivReps(ex, sets, x.date) : sessionE1rm(ex, sets, x.date));
+    const first = !out.length;
+    out.push({ t: x.start, date: x.date, w: h.w, r: h.r, v, e, tot: bw ? bw + h.w : null,
+      pr: { w: !first && (h.w > bW || (h.w === bW && h.r > bR)), r: !first && h.r > bRep, v: !first && v != null && v > bV, e: !first && e != null && e > bE } });
+    if (h.w > bW) { bW = h.w; bR = h.r; } else if (h.w === bW) bR = Math.max(bR, h.r);
+    bRep = Math.max(bRep, h.r); if (v != null) bV = Math.max(bV, v); if (e != null) bE = Math.max(bE, e);
+  }
+  return out;
+}
 const metricUnit = ex => ex.type === 'bw' && REPS_LIBS.has(ex.lib) ? 'Wdh' : 'kg';
 // Stagnation: in den letzten drei Einheiten desselben Tages kein neuer Bestwert
 function stagnation(ex, dayId) {
@@ -1500,7 +1559,7 @@ const Views = {
       ${fold('note:' + id + ':' + (day || ''), 'Notiz', `<textarea class="field note-field" data-field="note-ex" data-id="${id}" data-day="${day || ''}" placeholder="z. B. Sitzhöhe 4, enger Griff">${esc(noteOf(ex, day))}</textarea>`, !!noteOf(ex, day).trim())}
       ${ex.desc ? fold('desc:' + id, 'Beschreibung', `<div class="fold-text">${esc(ex.desc)}</div>`) : ''}
       ${l ? fold('info:' + id, 'Infos zur Übung', infoHtml(l, ex.name)) : ''}
-      ${(() => { const sr = strengthSeries(ex, day || null); return sr.length >= 2 ? fold('kraft:' + id, 'Kraftverlauf', `<p class="hint" style="margin:0 0 4px">${metricUnit(ex) === 'kg' ? 'Geschätztes Maximalgewicht je Einheit' : 'Wdh mit Körpergewicht, die deine beste Leistung je Einheit entspricht'}.</p>${chartSvg(sr.map(p => Math.round(p.v * 10) / 10), sr.map(p => p.date))}`) : ''; })()}
+      ${graphPoints(ex, day || null).length >= 2 ? fold('kraft:' + id, 'Kraftverlauf', `<div id="gbox" class="gbox">${graphBoxHtml(ex, day || null)}</div>`) : ''}
       ${recordsHtml(ex, day) ? fold('rec:' + id, 'Rekorde', `<div id="recbox">${recordsHtml(ex, day)}</div>`) : ''}
       ${hist.length ? fold('hist:' + id, `Verlauf (${hist.length} ${hist.length === 1 ? 'Einheit' : 'Einheiten'})`, grid) : ''}
       ${next ? `<button class="next" data-a="ex-next" data-id="${nextId}"><span><small>Nächste Übung</small><strong>${esc(next.name)}</strong></span>${ICON.chev.replace('i chev', 'i')}</button>` : ''}`;
@@ -1750,7 +1809,7 @@ function recordsHtml(ex, dayId) {
   if (R.e1) rows.push(`<tr><td>Bestes geschätztes Maximum</td><td>${fmt(Math.round(R.e1.v * 2) / 2)} kg</td><td>${d(R.e1)}</td></tr>`);
   REP_STEPS.forEach(k => { const p = R.rm[k]; if (p && (ex.type !== 'bw' || p.w)) rows.push(`<tr><td>${k} Wdh</td><td>${esc(wUnit(p.w || 0, ex.type))}</td><td>${d(p)}</td></tr>`); });
   if (!rows.length) return '';
-  return `<table class="rec-table"><tbody>${rows.join('')}</tbody></table><p class="hint" style="margin-top:8px">Wdh-Rekorde: das schwerste Gewicht aus einem Satz mit mindestens so vielen Wdh. Drops zählen nicht.${dayId && S.days[dayId] ? ` Es zählen nur Einheiten von ${esc(S.days[dayId].name)}.` : ''}</p>`;
+  return `${recordBarsHtml(ex, dayId)}<table class="rec-table"><tbody>${rows.join('')}</tbody></table><p class="hint" style="margin-top:8px">Wdh-Rekorde: das schwerste Gewicht aus einem Satz mit mindestens so vielen Wdh. Drops zählen nicht.${dayId && S.days[dayId] ? ` Es zählen nur Einheiten von ${esc(S.days[dayId].name)}.` : ''}</p>`;
 }
 function strengthLine(ex, dayId) {
   const parts = [], bw = latestBody('weight');
@@ -1803,6 +1862,119 @@ function chartSvg(vals, dates) {
   const d = pts.map((p, i) => (i ? 'L' : 'M') + p[0].toFixed(1) + ' ' + p[1].toFixed(1)).join(' ');
   return `<svg class="chart" viewBox="0 0 ${W} ${H}" role="img" aria-label="Verlauf"><path d="${d}" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linejoin="round" stroke-linecap="round"/>${pts.map(p => `<circle cx="${p[0].toFixed(1)}" cy="${p[1].toFixed(1)}" r="3.5" fill="currentColor"/>`).join('')}</svg>
     <div class="chart-legend"><span>${fmt(vals[0])}${dates ? ' am ' + esc(rel(dates[0])) : ''}</span><span>höchster ${fmt(mx)}, niedrigster ${fmt(mn)}</span><span>${fmt(vals[vals.length - 1])}${dates ? ' am ' + esc(rel(dates[dates.length - 1])) : ''}</span></div>`;
+}
+// ---- Grafiken in der Übung: Verlauf (Gewicht und Wdh, optional mit dem anderen Tag) und Rekord je Wdh-Bereich ----
+const GW = 340, GL = 42, GR = 18;
+function gState(exId, dayId) {
+  ui.g = ui.g || {}; const k = exId + ':' + (dayId || '');
+  return ui.g[k] || (ui.g[k] = { mode: 'gw', range: 'all', other: null });
+}
+function otherDaysOf(ex, dayId) {
+  const ids = new Set();
+  S.sessions.forEach(x => { if (x.end != null && x.dayId !== dayId && S.days[x.dayId] && doneSets(x.entries[ex.id]).length >= 1) ids.add(x.dayId); });
+  return [...ids].map(id => ({ id, name: S.days[id].name })).filter(o => graphPoints(ex, o.id).length >= 1).sort((a, b) => a.name.localeCompare(b.name, 'de'));
+}
+function graphModes(ex, pts) {
+  const hold = isHold(ex), hasW = pts.some(p => p.w > 0), m = [];
+  if (hasW) { m.push(['gw', 'Gewicht und Wdh']); m.push(['w', ex.type === 'bw' ? 'Zusatzgewicht' : 'Nur Gewicht']); }
+  m.push(['r', hold ? 'Nur Sek' : 'Nur Wdh']);
+  if (!hold) m.push(['v', 'Volumen']);
+  if (!hold && pts.some(p => p.e != null)) m.push(['e', ex.type === 'bw' && REPS_LIBS.has(ex.lib) ? 'Wdh-Äquivalent' : 'Gesch. Maximum']);
+  if (!hold && ex.type === 'bw' && hasW && pts.some(p => p.tot != null)) m.push(['t', 'Mit Körpergewicht']);
+  return m;
+}
+// Achse mit glatten Schritten (1, 2, 2,5, 5 mal Zehnerpotenz), mit etwas Luft über und unter den Werten
+function gAxis(min, max, zero) {
+  if (max === min) max = min + 1;
+  const span = max - (zero ? 0 : min), pad = span * 0.06;
+  let lo = zero ? 0 : min - pad; const hi0 = max + pad;
+  const raw = (hi0 - lo) / 3, mag = Math.pow(10, Math.floor(Math.log10(raw)));
+  const step = [1, 2, 2.5, 5, 10].map(f => f * mag).find(f => f >= raw - 1e-9) || mag * 10;
+  if (!zero) lo = Math.floor(lo / step + 1e-9) * step;
+  const n = Math.max(2, Math.ceil((hi0 - lo) / step - 1e-9));
+  return { lo, hi: lo + n * step, ticks: Array.from({ length: n + 1 }, (_, i) => lo + i * step) };
+}
+// Eine Teilgrafik: Linie mit Punkten (oder Balken) für den aktuellen Tag, gestrichelte rote Linie für den anderen Tag
+function gPanel(o) {
+  const A = o.A.filter(p => o.get(p) != null), B = o.B.filter(p => o.get(p) != null);
+  const vals = A.concat(B).map(o.get);
+  const ax = gAxis(Math.min(...vals), Math.max(...vals), o.zero), lo = ax.lo, hi = ax.hi;
+  const X = t => o.tmax === o.tmin ? GL + (GW - GL - GR) / 2 : GL + (t - o.tmin) / (o.tmax - o.tmin) * (GW - GL - GR);
+  const Y = v => o.top + o.h - (v - lo) / (hi - lo) * o.h;
+  let s = `<text class="gt" x="${GL}" y="${o.top - 9}">${esc(o.label)}</text>`;
+  ax.ticks.forEach(t => { const y = Y(t); s += `<line class="gl" x1="${GL}" x2="${GW}" y1="${y.toFixed(1)}" y2="${y.toFixed(1)}"/><text class="gt" x="${GL - 7}" y="${(y + 4).toFixed(1)}" text-anchor="end">${esc(o.tick(t))}</text>`; });
+  const path = (pts, cls) => pts.length ? `<path class="g-line ${cls}" d="${pts.map((p, j) => (j ? 'L' : 'M') + X(p.t).toFixed(1) + ' ' + Y(o.get(p)).toFixed(1)).join(' ')}"/>` : '';
+  if (B.length) { s += path(B, 'o'); B.forEach(p => { s += `<circle class="g-dot o" cx="${X(p.t).toFixed(1)}" cy="${Y(o.get(p)).toFixed(1)}" r="4"/>`; }); }
+  if (o.bars) {
+    const bw = Math.max(6, Math.min(16, (GW - GL - GR) / Math.max(A.length, 1) * 0.55));
+    A.forEach(p => { const y = Y(o.get(p)); s += `<rect class="g-bar" x="${(X(p.t) - bw / 2).toFixed(1)}" y="${y.toFixed(1)}" width="${bw.toFixed(1)}" height="${Math.max(1, o.top + o.h - y).toFixed(1)}" rx="3"/>`; });
+  } else {
+    s += path(A, '');
+    A.forEach(p => { const pr = p.pr && p.pr[o.pr]; s += `<circle class="${pr ? 'g-pr' : 'g-dot'}" cx="${X(p.t).toFixed(1)}" cy="${Y(o.get(p)).toFixed(1)}" r="${pr ? 6 : 4}"/>`; });
+  }
+  const last = A[A.length - 1];
+  if (last) s += `<text class="gv" x="${(X(last.t) - 9).toFixed(1)}" y="${(Y(o.get(last)) - 11).toFixed(1)}" text-anchor="end">${esc(o.val(last))}</text>`;
+  return s;
+}
+function graphSvg(ex, mode, A, B) {
+  const hold = isHold(ex), bwx = ex.type === 'bw';
+  const all = A.concat(B), tmin = Math.min(...all.map(p => p.t)), tmax = Math.max(...all.map(p => p.t));
+  const wTick = t => bwx && Math.abs(t) < 1e-9 ? 'BW' : fmt(Math.round(t * 10) / 10);
+  const nTick = t => fmt(Math.round(t));
+  const wLabel = bwx ? 'Zusatzgewicht (kg)' : 'Gewicht (kg)', rLabel = hold ? 'Sekunden' : 'Wiederholungen';
+  const P = {
+    w: { get: p => p.w, tick: wTick, label: wLabel, zero: bwx, pr: 'w', val: p => wUnit(p.w, ex.type) },
+    r: { get: p => p.r, tick: nTick, label: rLabel, zero: true, pr: 'r', val: p => String(p.r) },
+    v: { get: p => p.v, tick: nTick, label: 'Volumen (kg)', zero: true, pr: 'v', val: p => fmt(Math.round(p.v)) + ' kg' },
+    e: { get: p => p.e, tick: wTick, label: bwx && REPS_LIBS.has(ex.lib) ? 'Wdh-Äquivalent' : 'Geschätztes Maximum (kg)', zero: false, pr: 'e', val: p => fmt(Math.round(p.e * 10) / 10) + (bwx && REPS_LIBS.has(ex.lib) ? ' Wdh' : ' kg') },
+    t: { get: p => p.tot, tick: wTick, label: 'Gesamtlast mit Körpergewicht (kg)', zero: false, pr: 'w', val: p => fmt(Math.round(p.tot * 10) / 10) + ' kg' }
+  };
+  let body, H;
+  if (mode === 'gw') {
+    body = gPanel({ ...P.w, A, B, tmin, tmax, top: 26, h: 118 }) + gPanel({ ...P.r, A, B, tmin, tmax, top: 190, h: 92, bars: true });
+    H = 312;
+  } else { body = gPanel({ ...P[mode], A, B, tmin, tmax, top: 26, h: 210 }); H = 276; }
+  const d = t => new Date(t).toLocaleDateString('de-DE', { day: 'numeric', month: 'short' });
+  body += `<text class="gt" x="${GL}" y="${H - 6}">${esc(d(tmin))}</text><text class="gt" x="${GW}" y="${H - 6}" text-anchor="end">${esc(d(tmax))}</text>`;
+  return `<svg class="g-svg" viewBox="0 0 ${GW} ${H}" role="img" aria-label="Verlauf der Übung"><title>Verlauf</title>${body}</svg>`;
+}
+function graphBoxHtml(ex, dayId) {
+  const st = gState(ex.id, dayId), pts = graphPoints(ex, dayId || null), modes = graphModes(ex, pts);
+  const mode = modes.some(m => m[0] === st.mode) ? st.mode : modes[0][0];
+  const others = dayId ? otherDaysOf(ex, dayId) : [];
+  if (st.other && !others.some(o => o.id === st.other)) st.other = null;
+  const cut = st.range === '3m' ? Date.now() - 92 * 864e5 : 0;
+  const A = pts.filter(p => p.t >= cut), B = st.other ? graphPoints(ex, st.other).filter(p => p.t >= cut) : [];
+  const chips = modes.map(m => `<button class="g-chip ${m[0] === mode ? 'on' : ''}" data-a="g-mode" data-v="${m[0]}">${esc(m[1])}</button>`).join('');
+  const row2 = `<button class="g-chip ${st.range === '3m' ? 'on' : ''}" data-a="g-range">${st.range === '3m' ? '3 Monate' : 'Alles'}</button>` + others.map(o => `<button class="g-chip red ${st.other === o.id ? 'on' : ''}" data-a="g-other" data-d="${o.id}">${esc(o.name)}</button>`).join('');
+  const nameA = dayId && S.days[dayId] ? S.days[dayId].name : ex.name;
+  const body = A.length >= 2
+    ? graphSvg(ex, mode, A, B) + `<div class="g-legend"><span><i></i>${esc(nameA)}</span>${B.length ? `<span><i class="red"></i>${esc(S.days[st.other].name)}</span>` : ''}</div><p class="hint" style="margin-top:6px">Gefüllte Punkte sind neue Bestleistungen.${B.length ? ' Beide Tage sind getrennt gerechnet.' : ''}</p>`
+    : `<p class="hint">Im Zeitraum ${A.length === 1 ? 'steht nur eine Einheit' : 'gibt es keine Einheit'}. Für den Verlauf braucht es zwei.</p>`;
+  return `<div class="g-row">${chips}</div><div class="g-row">${row2}</div>${body}`;
+}
+// Rekord je Wdh-Bereich: Balken für den Stand jetzt und vor vier Wochen
+function recordBarsHtml(ex, dayId) {
+  if (isHold(ex)) return '';
+  const all = S.sessions.filter(y => y.end != null && (!dayId || y.dayId === dayId) && doneSets(y.entries[ex.id]).length);
+  const now = recordsOf(ex, all).rm, old = recordsOf(ex, all.filter(y => y.start < Date.now() - 28 * 864e5)).rm;
+  const ks = REP_STEPS.filter(k => now[k] && (now[k].w || 0) > 0);
+  if (!ks.length) return '';
+  const hasOld = ks.some(k => old[k] && (old[k].w || 0) > 0);
+  const W = GW, H = 200, base = 156, top = 28, n = ks.length, gw = (W - 20) / n;
+  const bw = Math.max(8, Math.min(24, gw / 2 - 5));
+  const mx = Math.max(...ks.map(k => Math.max(now[k].w || 0, (old[k] && old[k].w) || 0)));
+  let s = '';
+  [0, 0.5, 1].forEach(f => { const y = base - f * (base - top); s += `<line class="gl" x1="10" x2="${W}" y1="${y.toFixed(1)}" y2="${y.toFixed(1)}"/>`; });
+  ks.forEach((k, i) => {
+    const cx = 10 + gw * (i + 0.5), hn = (now[k].w || 0) / mx * (base - top), ho = hasOld && old[k] ? (old[k].w || 0) / mx * (base - top) : 0;
+    if (hasOld) { if (ho > 0) s += `<rect class="g-bar old" x="${(cx - bw - 1).toFixed(1)}" y="${(base - ho).toFixed(1)}" width="${bw}" height="${ho.toFixed(1)}" rx="3"/>`; }
+    const nx = hasOld ? cx + 1 : cx - bw / 2;
+    s += `<rect class="g-bar" x="${nx.toFixed(1)}" y="${(base - hn).toFixed(1)}" width="${bw}" height="${hn.toFixed(1)}" rx="3"/>`;
+    s += `<text class="gv" x="${(nx + bw / 2).toFixed(1)}" y="${(base - hn - 7).toFixed(1)}" text-anchor="middle">${esc(fmt(now[k].w))}</text>`;
+    s += `<text class="gt" x="${cx.toFixed(1)}" y="${base + 20}" text-anchor="middle">${k} Wdh</text>`;
+  });
+  return `<div class="recbars"><p class="hint" style="margin:0 0 4px">Rekord je Wdh-Bereich, ${ex.type === 'bw' ? 'Zusatzgewicht' : 'Gewicht'} in kg.</p><svg class="g-svg" viewBox="0 0 ${W} ${H}" role="img" aria-label="Rekord je Wiederholungsbereich"><title>Rekord je Wdh-Bereich</title>${s}</svg><div class="g-legend">${hasOld ? '<span><i class="sq"></i>vor 4 Wochen</span>' : ''}<span><i class="sq now"></i>jetzt</span></div></div>`;
 }
 // Zeile „Woche“ in der Einheit: zeigt die Trainingswoche und öffnet die Auswahl
 function weekRowHtml(x) {
@@ -2140,6 +2312,9 @@ function download(file) {
   document.body.appendChild(a); a.click(); a.remove();
   setTimeout(() => URL.revokeObjectURL(url), 5000);
 }
+function refreshGraph(c) {
+  const b = document.getElementById('gbox'); if (b && S.exercises[c.id]) b.innerHTML = graphBoxHtml(S.exercises[c.id], c.day || null);
+}
 function showWhatsNew() {
   const entry = CHANGELOG.find(c => c.v === APP_VERSION);
   S.seenVersion = APP_VERSION; save();
@@ -2299,6 +2474,9 @@ const A = {
     if (v === 'cal') delete x.week; else x.week = prev;
     save(); rerender(); toast(v === 'cal' ? 'Zur Kalenderwoche gezählt' : 'Zur Vorwoche gezählt');
   },
+  'g-mode': el => { const c = exCtx(); if (!c) return; gState(c.id, c.day).mode = el.dataset.v; refreshGraph(c); },
+  'g-range': () => { const c = exCtx(); if (!c) return; const st = gState(c.id, c.day); st.range = st.range === '3m' ? 'all' : '3m'; refreshGraph(c); },
+  'g-other': el => { const c = exCtx(); if (!c) return; const st = gState(c.id, c.day); st.other = st.other === el.dataset.d ? null : el.dataset.d; refreshGraph(c); },
   'open-day': el => go('day', { id: el.dataset.id }),
   'open-recent': el => go('recent', el.dataset.day ? { day: el.dataset.day } : {}),
 
