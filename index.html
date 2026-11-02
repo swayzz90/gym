@@ -511,9 +511,14 @@ window.BODY_IMG="data:image/webp;base64,UklGRgiwAABXRUJQVlA4WAoAAAAQAAAAZwEA9wMA
 /* ---------- Grundlagen ---------- */
 const $app = document.getElementById('app');
 const SCHEMA = 13;
-const APP_VERSION = '5.13';
+const APP_VERSION = '5.14';
 // Was ist neu: kurze Zeilen pro Version, neueste zuerst. Wird nach einem Update einmal angezeigt.
 const CHANGELOG = [
+  { v: '5.14', items: [
+    'Der Kraftverlauf mit Grafik erscheint jetzt schon nach der ersten Einheit und zeigt Gewicht und Wdh je Satz.',
+    'Neue Ansicht „Letzte Einheit“ in jedem Kraftverlauf, Satz für Satz.',
+    'Der Steigerungs-Hinweis nennt jetzt „mindestens“ die obere Grenze, zum Beispiel wenn ein Satz mehr als das Maximum hatte.'
+  ] },
   { v: '5.13', items: [
     'In jeder Übung gibt es jetzt Grafiken: den Verlauf von Gewicht und Wdh mit markierten Rekorden und Balken für den Rekord je Wdh-Bereich.',
     'Bei Körpergewichtsübungen zeigt das Gewicht das Zusatzgewicht, „BW“ ist die Nulllinie.',
@@ -1208,7 +1213,7 @@ function graphPoints(ex, dayId) {
     const v = hold ? null : exVolume(ex, x);
     const e = hold ? null : (ex.type === 'bw' && REPS_LIBS.has(ex.lib) ? equivReps(ex, sets, x.date) : sessionE1rm(ex, sets, x.date));
     const first = !out.length;
-    out.push({ t: x.start, date: x.date, w: h.w, r: h.r, v, e, tot: bw ? bw + h.w : null,
+    out.push({ t: x.start, sid: x.id, date: x.date, w: h.w, r: h.r, v, e, tot: bw ? bw + h.w : null,
       pr: { w: !first && (h.w > bW || (h.w === bW && h.r > bR)), r: !first && h.r > bRep, v: !first && v != null && v > bV, e: !first && e != null && e > bE } });
     if (h.w > bW) { bW = h.w; bR = h.r; } else if (h.w === bW) bR = Math.max(bR, h.r);
     bRep = Math.max(bRep, h.r); if (v != null) bV = Math.max(bV, v); if (e != null) bE = Math.max(bE, e);
@@ -1559,7 +1564,7 @@ const Views = {
       ${fold('note:' + id + ':' + (day || ''), 'Notiz', `<textarea class="field note-field" data-field="note-ex" data-id="${id}" data-day="${day || ''}" placeholder="z. B. Sitzhöhe 4, enger Griff">${esc(noteOf(ex, day))}</textarea>`, !!noteOf(ex, day).trim())}
       ${ex.desc ? fold('desc:' + id, 'Beschreibung', `<div class="fold-text">${esc(ex.desc)}</div>`) : ''}
       ${l ? fold('info:' + id, 'Infos zur Übung', infoHtml(l, ex.name)) : ''}
-      ${graphPoints(ex, day || null).length >= 2 ? fold('kraft:' + id, 'Kraftverlauf', `<div id="gbox" class="gbox">${graphBoxHtml(ex, day || null)}</div>`) : ''}
+      ${graphPoints(ex, day || null).length >= 1 ? fold('kraft:' + id, 'Kraftverlauf', `<div id="gbox" class="gbox">${graphBoxHtml(ex, day || null)}</div>`) : ''}
       ${recordsHtml(ex, day) ? fold('rec:' + id, 'Rekorde', `<div id="recbox">${recordsHtml(ex, day)}</div>`) : ''}
       ${hist.length ? fold('hist:' + id, `Verlauf (${hist.length} ${hist.length === 1 ? 'Einheit' : 'Einheiten'})`, grid) : ''}
       ${next ? `<button class="next" data-a="ex-next" data-id="${nextId}"><span><small>Nächste Übung</small><strong>${esc(next.name)}</strong></span>${ICON.chev.replace('i chev', 'i')}</button>` : ''}`;
@@ -1913,22 +1918,30 @@ function gPanel(o) {
     A.forEach(p => { const pr = p.pr && p.pr[o.pr]; s += `<circle class="${pr ? 'g-pr' : 'g-dot'}" cx="${X(p.t).toFixed(1)}" cy="${Y(o.get(p)).toFixed(1)}" r="${pr ? 6 : 4}"/>`; });
   }
   const last = A[A.length - 1];
-  if (last) s += `<text class="gv" x="${(X(last.t) - 9).toFixed(1)}" y="${(Y(o.get(last)) - 11).toFixed(1)}" text-anchor="end">${esc(o.val(last))}</text>`;
+  if (o.allLabels) A.forEach(p => { s += `<text class="gv" x="${X(p.t).toFixed(1)}" y="${(Y(o.get(p)) - 7).toFixed(1)}" text-anchor="middle">${esc(o.val(p))}</text>`; });
+  else if (last) s += `<text class="gv" x="${(X(last.t) - 9).toFixed(1)}" y="${(Y(o.get(last)) - 11).toFixed(1)}" text-anchor="end">${esc(o.val(last))}</text>`;
   return s;
 }
-function graphSvg(ex, mode, A, B) {
-  const hold = isHold(ex), bwx = ex.type === 'bw';
-  const all = A.concat(B), tmin = Math.min(...all.map(p => p.t)), tmax = Math.max(...all.map(p => p.t));
+// Gemeinsame Definitionen der Teilgrafiken je Größe
+function gDefs(ex) {
+  const hold = isHold(ex), bwx = ex.type === 'bw', repsLike = bwx && REPS_LIBS.has(ex.lib);
   const wTick = t => bwx && Math.abs(t) < 1e-9 ? 'BW' : fmt(Math.round(t * 10) / 10);
   const nTick = t => fmt(Math.round(t));
   const wLabel = bwx ? 'Zusatzgewicht (kg)' : 'Gewicht (kg)', rLabel = hold ? 'Sekunden' : 'Wiederholungen';
-  const P = {
-    w: { get: p => p.w, tick: wTick, label: wLabel, zero: bwx, pr: 'w', val: p => wUnit(p.w, ex.type) },
-    r: { get: p => p.r, tick: nTick, label: rLabel, zero: true, pr: 'r', val: p => String(p.r) },
-    v: { get: p => p.v, tick: nTick, label: 'Volumen (kg)', zero: true, pr: 'v', val: p => fmt(Math.round(p.v)) + ' kg' },
-    e: { get: p => p.e, tick: wTick, label: bwx && REPS_LIBS.has(ex.lib) ? 'Wdh-Äquivalent' : 'Geschätztes Maximum (kg)', zero: false, pr: 'e', val: p => fmt(Math.round(p.e * 10) / 10) + (bwx && REPS_LIBS.has(ex.lib) ? ' Wdh' : ' kg') },
-    t: { get: p => p.tot, tick: wTick, label: 'Gesamtlast mit Körpergewicht (kg)', zero: false, pr: 'w', val: p => fmt(Math.round(p.tot * 10) / 10) + ' kg' }
+  return {
+    wLabel, rLabel,
+    P: {
+      w: { get: p => p.w, tick: wTick, label: wLabel, zero: bwx, pr: 'w', val: p => wUnit(p.w, ex.type) },
+      r: { get: p => p.r, tick: nTick, label: rLabel, zero: true, pr: 'r', val: p => String(p.r) },
+      v: { get: p => p.v, tick: nTick, label: 'Volumen (kg)', zero: true, pr: 'v', val: p => fmt(Math.round(p.v)) + ' kg' },
+      e: { get: p => p.e, tick: wTick, label: repsLike ? 'Wdh-Äquivalent' : 'Geschätztes Maximum (kg)', zero: false, pr: 'e', val: p => fmt(Math.round(p.e * 10) / 10) + (repsLike ? ' Wdh' : ' kg') },
+      t: { get: p => p.tot, tick: wTick, label: 'Gesamtlast mit Körpergewicht (kg)', zero: false, pr: 'w', val: p => fmt(Math.round(p.tot * 10) / 10) + ' kg' }
+    }
   };
+}
+function graphSvg(ex, mode, A, B) {
+  const all = A.concat(B), tmin = Math.min(...all.map(p => p.t)), tmax = Math.max(...all.map(p => p.t));
+  const { P } = gDefs(ex);
   let body, H;
   if (mode === 'gw') {
     body = gPanel({ ...P.w, A, B, tmin, tmax, top: 26, h: 118 }) + gPanel({ ...P.r, A, B, tmin, tmax, top: 190, h: 92, bars: true });
@@ -1938,20 +1951,40 @@ function graphSvg(ex, mode, A, B) {
   body += `<text class="gt" x="${GL}" y="${H - 6}">${esc(d(tmin))}</text><text class="gt" x="${GW}" y="${H - 6}" text-anchor="end">${esc(d(tmax))}</text>`;
   return `<svg class="g-svg" viewBox="0 0 ${GW} ${H}" role="img" aria-label="Verlauf der Übung"><title>Verlauf</title>${body}</svg>`;
 }
+// Letzte Einheit, Satz für Satz: Gewicht als Linie, Wdh als Balken mit Zahl über jedem Balken
+function graphSetsSvg(ex, x) {
+  const { P } = gDefs(ex);
+  const A = doneSets(x.entries[ex.id]).map((s, i) => ({ t: i, w: s.w || 0, r: s.r || 0, pr: {} }));
+  const hasW = A.some(p => p.w > 0), n = A.length, tmin = -0.5, tmax = n - 0.5;
+  let body, H;
+  if (hasW) {
+    body = gPanel({ ...P.w, A, B: [], tmin, tmax, top: 26, h: 118 }) + gPanel({ ...P.r, A, B: [], tmin, tmax, top: 190, h: 92, bars: true, allLabels: true });
+    H = 312;
+  } else { body = gPanel({ ...P.r, A, B: [], tmin, tmax, top: 26, h: 210, bars: true, allLabels: true }); H = 276; }
+  body += `<text class="gt" x="${GL}" y="${H - 6}">Satz 1</text>${n > 1 ? `<text class="gt" x="${GW}" y="${H - 6}" text-anchor="end">Satz ${n}</text>` : ''}`;
+  return `<svg class="g-svg" viewBox="0 0 ${GW} ${H}" role="img" aria-label="Letzte Einheit Satz für Satz"><title>Letzte Einheit</title>${body}</svg>`;
+}
 function graphBoxHtml(ex, dayId) {
-  const st = gState(ex.id, dayId), pts = graphPoints(ex, dayId || null), modes = graphModes(ex, pts);
+  const st = gState(ex.id, dayId), pts = graphPoints(ex, dayId || null);
+  if (!pts.length) return '';
+  const single = pts.length < 2;
+  const modes = single ? [['sz', 'Letzte Einheit']] : graphModes(ex, pts).concat([['sz', 'Letzte Einheit']]);
   const mode = modes.some(m => m[0] === st.mode) ? st.mode : modes[0][0];
+  const chips = modes.length > 1 ? `<div class="g-row">${modes.map(m => `<button class="g-chip ${m[0] === mode ? 'on' : ''}" data-a="g-mode" data-v="${m[0]}">${esc(m[1])}</button>`).join('')}</div>` : '';
+  if (mode === 'sz') {
+    const x = S.sessions.find(y => y.id === pts[pts.length - 1].sid);
+    return `${chips}${graphSetsSvg(ex, x)}<p class="hint" style="margin-top:6px">Letzte Einheit, ${esc(rel(x.date))}, Satz für Satz.${single ? ' Ab der zweiten Einheit siehst du hier auch den Verlauf über die Zeit.' : ''}</p>`;
+  }
   const others = dayId ? otherDaysOf(ex, dayId) : [];
   if (st.other && !others.some(o => o.id === st.other)) st.other = null;
   const cut = st.range === '3m' ? Date.now() - 92 * 864e5 : 0;
   const A = pts.filter(p => p.t >= cut), B = st.other ? graphPoints(ex, st.other).filter(p => p.t >= cut) : [];
-  const chips = modes.map(m => `<button class="g-chip ${m[0] === mode ? 'on' : ''}" data-a="g-mode" data-v="${m[0]}">${esc(m[1])}</button>`).join('');
   const row2 = `<button class="g-chip ${st.range === '3m' ? 'on' : ''}" data-a="g-range">${st.range === '3m' ? '3 Monate' : 'Alles'}</button>` + others.map(o => `<button class="g-chip red ${st.other === o.id ? 'on' : ''}" data-a="g-other" data-d="${o.id}">${esc(o.name)}</button>`).join('');
   const nameA = dayId && S.days[dayId] ? S.days[dayId].name : ex.name;
   const body = A.length >= 2
     ? graphSvg(ex, mode, A, B) + `<div class="g-legend"><span><i></i>${esc(nameA)}</span>${B.length ? `<span><i class="red"></i>${esc(S.days[st.other].name)}</span>` : ''}</div><p class="hint" style="margin-top:6px">Gefüllte Punkte sind neue Bestleistungen.${B.length ? ' Beide Tage sind getrennt gerechnet.' : ''}</p>`
     : `<p class="hint">Im Zeitraum ${A.length === 1 ? 'steht nur eine Einheit' : 'gibt es keine Einheit'}. Für den Verlauf braucht es zwei.</p>`;
-  return `<div class="g-row">${chips}</div><div class="g-row">${row2}</div>${body}`;
+  return `${chips}<div class="g-row">${row2}</div>${body}`;
 }
 // Rekord je Wdh-Bereich: Balken für den Stand jetzt und vor vier Wochen
 function recordBarsHtml(ex, dayId) {
@@ -2084,7 +2117,7 @@ function stepUpHint(ex, dayId, lp) {
   const ep = effPlan(ex, dayId);
   if (!ep || !ep.rmax || !lp.sets.every(s => (s.r || 0) >= ep.rmax)) return '';
   const next = ex.type === 'bw' ? (lp.sets.some(s => s.w) ? 'Zusatzgewicht erhöhen' : 'Zusatzgewicht nehmen') : 'das Gewicht erhöhen';
-  return `<p class="hint step-up">Letzte Einheit: alle Sätze ${ep.rmax} Wdh, die obere Grenze. Beim nächsten Mal ${next}.</p>`;
+  return `<p class="hint step-up">Letzte Einheit: alle Sätze mindestens ${ep.rmax} Wdh, die obere Grenze. Beim nächsten Mal ${next}.</p>`;
 }
 function setsBlock(ex, dayId) {
   const sess = activeFor(dayId);
