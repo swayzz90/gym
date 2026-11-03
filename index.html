@@ -481,7 +481,7 @@ html::-webkit-scrollbar,body::-webkit-scrollbar,*::-webkit-scrollbar{display:non
 .g-svg{display:block;width:100%;height:auto;margin-top:4px}
 .g-svg .gl{stroke:var(--steel);stroke-width:1}
 .g-svg .gt{fill:var(--ash);font-size:12px}
-.g-svg .gv{fill:var(--chalk);font-size:14px;font-weight:700}
+.g-svg .gv{fill:var(--chalk);font-size:14px;font-weight:700;paint-order:stroke;stroke:var(--black);stroke-width:4px;stroke-linejoin:round}
 .g-line{fill:none;stroke:var(--chalk);stroke-width:2.5;stroke-linejoin:round;stroke-linecap:round}
 .g-line.o{stroke:var(--danger);stroke-dasharray:6 5}
 .g-dot{fill:var(--black);stroke:var(--chalk);stroke-width:2.5}
@@ -511,9 +511,12 @@ window.BODY_IMG="data:image/webp;base64,UklGRgiwAABXRUJQVlA4WAoAAAAQAAAAZwEA9wMA
 /* ---------- Grundlagen ---------- */
 const $app = document.getElementById('app');
 const SCHEMA = 13;
-const APP_VERSION = '5.14';
+const APP_VERSION = '5.15';
 // Was ist neu: kurze Zeilen pro Version, neueste zuerst. Wird nach einem Update einmal angezeigt.
 const CHANGELOG = [
+  { v: '5.15', items: [
+    'Die Zahl am letzten Punkt der Grafik liegt nicht mehr auf der Linie. Bei fallender Linie steht sie darunter.'
+  ] },
   { v: '5.14', items: [
     'Der Kraftverlauf mit Grafik erscheint jetzt schon nach der ersten Einheit und zeigt Gewicht und Wdh je Satz.',
     'Neue Ansicht „Letzte Einheit“ in jedem Kraftverlauf, Satz für Satz.',
@@ -1919,7 +1922,11 @@ function gPanel(o) {
   }
   const last = A[A.length - 1];
   if (o.allLabels) A.forEach(p => { s += `<text class="gv" x="${X(p.t).toFixed(1)}" y="${(Y(o.get(p)) - 7).toFixed(1)}" text-anchor="middle">${esc(o.val(p))}</text>`; });
-  else if (last) s += `<text class="gv" x="${(X(last.t) - 9).toFixed(1)}" y="${(Y(o.get(last)) - 11).toFixed(1)}" text-anchor="end">${esc(o.val(last))}</text>`;
+  else if (last) {
+    // Zahl am letzten Punkt: über dem Punkt, bei fallender Linie darunter, damit sie nicht auf der Linie liegt
+    const prev = A[A.length - 2], ly = Y(o.get(last)), falling = !o.bars && prev && Y(o.get(prev)) < ly - 2;
+    s += `<text class="gv" x="${(X(last.t) - 9).toFixed(1)}" y="${(falling ? ly + 24 : ly - 11).toFixed(1)}" text-anchor="end">${esc(o.val(last))}</text>`;
+  }
   return s;
 }
 // Gemeinsame Definitionen der Teilgrafiken je Größe
