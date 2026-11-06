@@ -496,6 +496,9 @@ html::-webkit-scrollbar,body::-webkit-scrollbar,*::-webkit-scrollbar{display:non
 .g-legend i.sq.now{background:var(--chalk)}
 .recbars{margin:0 0 16px}
 
+/* V5.17: Fotos */
+.photo-full,.gal-item img,.photo-thumb img,.thumb img{-webkit-touch-callout:none;-webkit-user-select:none;user-select:none;-webkit-user-drag:none}
+
 </style>
 </head>
 <body>
@@ -511,9 +514,14 @@ window.BODY_IMG="data:image/webp;base64,UklGRgiwAABXRUJQVlA4WAoAAAAQAAAAZwEA9wMA
 /* ---------- Grundlagen ---------- */
 const $app = document.getElementById('app');
 const SCHEMA = 13;
-const APP_VERSION = '5.16';
+const APP_VERSION = '5.17';
 // Was ist neu: kurze Zeilen pro Version, neueste zuerst. Wird nach einem Update einmal angezeigt.
 const CHANGELOG = [
+  { v: '5.17', items: [
+    'Fotos sind in Listen jetzt kleine Vorschaubilder. Das macht „Letzte Einheiten“ und das Zurückwischen flüssiger.',
+    'Die Galerie in einer Einheit lädt nur das Foto, das du siehst, und die Nachbarn.',
+    'Die Wischgeste erholt sich selbst, wenn sie einmal hängen bleibt.'
+  ] },
   { v: '5.16', items: [
     'Die Balken in den Grafiken sitzen nicht mehr am Rand und verdecken die Achsenzahlen nicht mehr.',
     'Die Zahl steht mittig über jedem Balken, bis zu acht Balken mit Zahl, bei mehr Einheiten nur der letzte.',
@@ -734,14 +742,64 @@ async function getImg(id) {
   return v || null;
 }
 async function putImg(data) { const id = 'img_' + uid(); imgCache.set(id, data); await Store.put('images', id, data); return id; }
-function delImg(id) { imgCache.delete(id); return Store.del('images', id).catch(() => {}); }
+function delImg(id) { imgCache.delete(id); thumbCache.delete(id); Store.del('images', 'th_' + id).catch(() => {}); return Store.del('images', id).catch(() => {}); }
+// Kleine Vorschaubilder für Listen: werden einmal aus dem großen Foto gerechnet, im Speicher gehalten und unter th_<id> abgelegt.
+// Sie entstehen nacheinander, damit nie mehrere große Fotos gleichzeitig entschlüsselt werden.
+const thumbCache = new Map();
+let thumbChain = Promise.resolve();
+function makeThumb(url, max) {
+  return new Promise(res => {
+    const i = new Image();
+    i.onload = () => {
+      const sc = Math.min(1, max / Math.max(i.naturalWidth, i.naturalHeight)), w = Math.max(1, Math.round(i.naturalWidth * sc)), h = Math.max(1, Math.round(i.naturalHeight * sc));
+      const c = document.createElement('canvas'); c.width = w; c.height = h;
+      c.getContext('2d').drawImage(i, 0, 0, w, h);
+      let out = url; try { out = c.toDataURL('image/jpeg', 0.75); } catch (e) {}
+      i.onload = i.onerror = null; i.src = ''; res(out);
+    };
+    i.onerror = () => res(url);
+    i.src = url;
+  });
+}
+function getThumb(id) {
+  if (thumbCache.has(id)) return Promise.resolve(thumbCache.get(id));
+  const job = thumbChain.then(async () => {
+    if (thumbCache.has(id)) return thumbCache.get(id);
+    const stored = await Store.get('images', 'th_' + id).catch(() => null);
+    if (stored) { thumbCache.set(id, stored); return stored; }
+    const full = await getImg(id); if (!full) return null;
+    const t = await makeThumb(full, 180);
+    thumbCache.set(id, t); Store.put('images', 'th_' + id, t).catch(() => {});
+    return t;
+  }).catch(() => null);
+  thumbChain = job.then(() => {});
+  return job;
+}
 function noteRatio(el) {
   const ex = el.dataset.ex && S.exercises[el.dataset.ex];
   if (ex && !ex.imgRatio && el.naturalWidth) { ex.imgRatio = Math.round(el.naturalWidth / el.naturalHeight * 1000) / 1000; save(); }
 }
+let galleryObserver = null;
 function hydrateImages(root) {
   root.querySelectorAll('img[data-img]').forEach(async el => {
     const id = el.dataset.img;
+    el.decoding = 'async';
+    // Kleine Bilder in Listen: nur die Vorschau laden, nie das ganze Foto
+    if (el.closest('.thumb, .photo-thumb')) {
+      if (thumbCache.has(id)) { el.src = thumbCache.get(id); el.classList.add('loaded'); return; }
+      const t = await getThumb(id);
+      if (t && el.isConnected && el.dataset.img === id) { el.onload = () => el.classList.add('loaded'); el.src = t; }
+      return;
+    }
+    // Galerie in der Einheit: Fotos erst laden, wenn sie in die Nähe des sichtbaren Bereichs kommen
+    const gal = el.closest('.gallery');
+    if (gal && 'IntersectionObserver' in window && !el.dataset.lazyDone) {
+      if (!galleryObserver) galleryObserver = new IntersectionObserver(es => es.forEach(en => {
+        if (!en.isIntersecting) return;
+        galleryObserver.unobserve(en.target); en.target.dataset.lazyDone = '1'; hydrateImages(en.target.parentNode);
+      }), { rootMargin: '0px 100% 0px 100%' });
+      galleryObserver.observe(el); return;
+    }
     if (imgCache.has(id)) { el.src = imgCache.get(id); el.classList.add('loaded'); el.onload = () => noteRatio(el); return; }
     const src = await getImg(id);
     if (src && el.dataset.img === id) { el.onload = () => { el.classList.add('loaded'); noteRatio(el); }; el.src = src; }
@@ -762,7 +820,7 @@ async function processImage(file) {
 async function gcImages() {
   try {
     const used = new Set([...Object.values(S.exercises).map(e => e.image), ...S.sessions.flatMap(x => x.photos || [])].filter(Boolean));
-    for (const k of await Store.keys('images')) if (!used.has(k)) await delImg(k);
+    for (const k of await Store.keys('images')) { const base = k.startsWith('th_') ? k.slice(3) : k; if (!used.has(base)) await delImg(base); }
   } catch (e) {}
 }
 // Bereits geladene Bilder ohne Einblenden zeigen, damit beim Neuaufbau nichts flackert
@@ -2464,6 +2522,12 @@ function tickTimers() {
 }
 const toggleIn = (arr, v) => { const i = arr.indexOf(v); if (i > -1) arr.splice(i, 1); else arr.push(v); };
 
+// Alle Fotos fürs Backup. Vorschaubilder (th_) fehlen absichtlich, sie entstehen von selbst neu.
+async function collectImages() {
+  const images = {};
+  for (const k of await Store.keys('images')) { if (k.startsWith('th_')) continue; const v = await Store.get('images', k); if (v) images[k] = v; }
+  return images;
+}
 const A = {
   back: () => back(),
   go: el => go(el.dataset.view),
@@ -2832,8 +2896,7 @@ const A = {
   'backup-make': async () => {
     try {
       await flush();
-      const images = {};
-      for (const k of await Store.keys('images')) { const v = await Store.get('images', k); if (v) images[k] = v; }
+      const images = await collectImages();
       const json = JSON.stringify({ app: 'gym-tracker', schema: SCHEMA, exportedAt: new Date().toISOString(), state: S, images });
       const name = `gym-backup-${today()}.json`;
       ui.backup = new File([json], name, { type: 'application/json' });
@@ -2866,7 +2929,7 @@ const A = {
   'import': () => document.getElementById('file-import').click(),
   'wipe': async () => {
     if (!await confirmSheet('Alle Daten löschen?', `Pläne, Übungen, Bilder und dein kompletter Verlauf werden gelöscht.${preUpdate ? ' Die automatische Sicherheitskopie wird ebenfalls gelöscht.' : ''} Das lässt sich nicht rückgängig machen.`, 'Alles löschen')) return;
-    await Store.clear('images'); imgCache.clear();
+    await Store.clear('images'); imgCache.clear(); thumbCache.clear();
     try { await Store.del('kv', 'pre-update'); } catch (e) {} preUpdate = null;
     S = emptyState(); await flush();
     stack = [{ view: 'home', params: {}, scroll: 0 }]; render('top'); toast('Alle Daten gelöscht');
@@ -2967,7 +3030,7 @@ document.getElementById('file-import').addEventListener('change', async e => {
   if (!await confirmSheet('Backup wiederherstellen?', `Backup vom ${new Date(data.exportedAt).toLocaleDateString('de-DE')}. Deine aktuellen Daten werden dabei ersetzt.`, 'Wiederherstellen')) return;
   try {
     S = migrate(data.state);
-    await Store.clear('images'); imgCache.clear();
+    await Store.clear('images'); imgCache.clear(); thumbCache.clear();
     for (const [k, v] of Object.entries(data.images || {})) await Store.put('images', k, v);
     await flush();
     stack = [{ view: 'home', params: {}, scroll: 0 }]; render('top'); toast('Backup wiederhergestellt');
@@ -3010,6 +3073,8 @@ function swipeCleanup(keepScroll) {
   sw = null;
 }
 document.addEventListener('touchstart', e => {
+  // Hing eine Wischgeste (kein Ende, zum Beispiel nach einem Bild oder Systemgeste), räumt der nächste Fingerdruck sie auf
+  if (sw && Date.now() - (sw.last || sw.t0) > 700) swipeCleanup(true);
   if (sw || sheetEl || stack.length <= 1 || e.touches.length !== 1) return;
   const t = e.touches[0];
   if (t.clientX > EDGE) return;
@@ -3017,6 +3082,8 @@ document.addEventListener('touchstart', e => {
 }, { passive: true });
 document.addEventListener('touchmove', e => {
   if (!sw || sw.done) return;
+  sw.last = Date.now();
+  if (e.touches.length !== 1) { swipeCleanup(true); return; }
   const t = e.touches[0], dx = t.clientX - sw.x0, dy = t.clientY - sw.y0;
   if (!sw.decided) {
     if (Math.abs(dx) < 8 && Math.abs(dy) < 8) return;
